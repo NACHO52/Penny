@@ -1,6 +1,0 @@
-@Penny.Api_HostAddress = http://localhost:5101
-
-GET {{Penny.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
