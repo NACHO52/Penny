@@ -1,5 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 
 namespace Penny.Api.Auth;
 
@@ -13,6 +14,16 @@ public static class AuthEndpoints
 
         app.MapPost("/auth/login", LoginAsync)
             .WithName("LoginUser")
+            .WithOpenApi();
+
+        app.MapPost("/auth/logout", LogoutAsync)
+            .RequireAuthorization()
+            .WithName("LogoutUser")
+            .WithOpenApi();
+
+        app.MapGet("/auth/me", GetCurrentUserAsync)
+            .RequireAuthorization()
+            .WithName("GetCurrentUser")
             .WithOpenApi();
     }
 
@@ -75,6 +86,27 @@ public static class AuthEndpoints
         return result.Succeeded
             ? Results.NoContent()
             : Results.Unauthorized();
+    }
+
+    private static async Task<IResult> LogoutAsync(
+    SignInManager<IdentityUser> signInManager)
+    {
+        await signInManager.SignOutAsync();
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> GetCurrentUserAsync(
+    ClaimsPrincipal principal,
+    UserManager<IdentityUser> userManager)
+    {
+        var user = await userManager.GetUserAsync(principal);
+
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        return Results.Ok(new { user.Id, user.Email });
     }
 
     public sealed record LoginRequest(string? Email, string? Password);

@@ -15,6 +15,16 @@ builder.Services
     .AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<PennyDbContext>();
 
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+});
+
+
 builder.Services.AddAuthorization();
 
 // Add services to the container.
