@@ -1,9 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.37411.7 d17.14
+VisualStudioVersion = 17.14.37411.7
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Penny.Api", "Penny.Api\Penny.Api.csproj", "{BC8FA90B-0E59-4D6D-BAB3-4E0000290184}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Penny.Domain", "Penny.Domain\Penny.Domain.csproj", "{D91D4F3D-3184-4432-B6D2-4C4BF6284CC8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Penny.Infrastructure", "Penny.Infrastructure\Penny.Infrastructure.csproj", "{0681AD0C-8A87-41B3-8E6A-8779AD923239}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +19,14 @@ Global
 		{BC8FA90B-0E59-4D6D-BAB3-4E0000290184}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BC8FA90B-0E59-4D6D-BAB3-4E0000290184}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BC8FA90B-0E59-4D6D-BAB3-4E0000290184}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D91D4F3D-3184-4432-B6D2-4C4BF6284CC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D91D4F3D-3184-4432-B6D2-4C4BF6284CC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D91D4F3D-3184-4432-B6D2-4C4BF6284CC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D91D4F3D-3184-4432-B6D2-4C4BF6284CC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0681AD0C-8A87-41B3-8E6A-8779AD923239}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0681AD0C-8A87-41B3-8E6A-8779AD923239}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0681AD0C-8A87-41B3-8E6A-8779AD923239}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0681AD0C-8A87-41B3-8E6A-8779AD923239}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

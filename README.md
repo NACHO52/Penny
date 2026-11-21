@@ -27,10 +27,10 @@ dotnet dev-certs https --trust
 
 If your local SQL Server uses a self-signed certificate, you can add `TrustServerCertificate=True;` to the development connection string.
 
-Set `Penny.Api` as the startup project in Visual Studio. Open **Tools → NuGet Package Manager → Package Manager Console**, select `Penny.Api` as the default project, and apply the initial Identity migration.
+Set `Penny.Api` as the startup project in Visual Studio. Open **Tools → NuGet Package Manager → Package Manager Console** and apply the migrations. `Penny.Infrastructure` contains the EF Core context and migrations. `Penny.Api` provides the startup configuration.
 
 ```powershell
-Update-Database -Context PennyDbContext
+Update-Database -Context PennyDbContext -Project Penny.Infrastructure -StartupProject Penny.Api
 ```
 
 Start the API with the **https** launch profile and open Swagger UI at `https://localhost:7242/swagger`.

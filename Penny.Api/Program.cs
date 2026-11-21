@@ -1,5 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using Penny.Api.Data;
+using Penny.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
 using Penny.Api.Auth;
 
@@ -9,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PennyDatabase")
     ?? throw new InvalidOperationException("The PennyDatabase connection string is missing.");
 
-builder.Services.AddDbContext<PennyDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddPennyPersistence(connectionString);
 
 builder.Services
     .AddIdentity<IdentityUser, IdentityRole>()

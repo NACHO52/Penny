@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Penny.Api.Data.Migrations
+namespace Penny.Infrastructure.Data.Migrations
 {
     /// <inheritdoc />
     public partial class InitialIdentity : Migration
