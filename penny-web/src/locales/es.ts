@@ -1,5 +1,6 @@
 export const es = {
   login: {
+    description: "Ingresá para ver tu situación financiera.",
     title: "Iniciar sesión",
     emailLabel: "Correo electrónico",
     passwordLabel: "Contraseña",
@@ -14,6 +15,7 @@ export const es = {
     sessionUnavailable: "Ingresaste, pero no pudimos consultar tu sesión.",
   },
   home: {
+    navigation: "Navegación principal",
     title: "Inicio",
     signOut: "Cerrar sesión",
     signingOut: "Cerrando sesión…",

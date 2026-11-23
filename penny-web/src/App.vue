@@ -100,33 +100,46 @@ async function signOut() {
 
 <template>
   <div v-if="currentUser" class="home-page">
-    <header class="home-header">
-      <div class="auth-brand">
-        <img src="/penny-icon.png" alt="" width="40" height="40" />
+    <aside class="home-sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">P</span>
         <span>Penny</span>
       </div>
-      <button class="home-sign-out" type="button" :disabled="signingOut" @click="signOut">
-        {{ signingOut ? es.home.signingOut : es.home.signOut }}
-      </button>
-    </header>
-    <main class="home-content">
-      <h1>{{ es.home.title }}</h1>
-      <p class="session-email">{{ currentUser.email }}</p>
-      <p v-if="signOutError" class="auth-error" role="alert">{{ signOutError }}</p>
-    </main>
+      <nav class="home-navigation" :aria-label="es.home.navigation">
+        <a href="#home-content" aria-current="page">
+          <span class="home-nav-icon" aria-hidden="true"></span>
+          {{ es.home.title }}
+        </a>
+      </nav>
+    </aside>
+    <div class="home-main">
+      <header class="home-header">
+        <h1>{{ es.home.title }}</h1>
+        <button class="home-sign-out" type="button" :disabled="signingOut" @click="signOut">
+          {{ signingOut ? es.home.signingOut : es.home.signOut }}
+        </button>
+      </header>
+      <main id="home-content" class="home-content" tabindex="-1">
+        <p class="session-email">{{ currentUser.email }}</p>
+        <p v-if="signOutError" class="auth-error" role="alert">{{ signOutError }}</p>
+      </main>
+    </div>
   </div>
 
   <main v-else class="auth-page">
     <section class="auth-card" aria-labelledby="auth-title">
-      <div class="auth-brand">
-        <img src="/penny-icon.png" alt="" width="48" height="48" />
+      <div class="brand auth-brand">
+        <span class="brand-mark" aria-hidden="true">P</span>
         <span>Penny</span>
       </div>
 
       <h1 v-if="checkingSession" id="auth-title" role="status">{{ text.checkingSession }}</h1>
 
       <template v-else>
-        <h1 id="auth-title">{{ text.title }}</h1>
+        <div class="auth-heading">
+          <h1 id="auth-title">{{ text.title }}</h1>
+          <p>{{ text.description }}</p>
+        </div>
 
         <form class="auth-form" @submit.prevent="signIn">
           <div class="auth-field">
