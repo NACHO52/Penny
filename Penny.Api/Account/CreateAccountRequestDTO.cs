@@ -1,4 +1,4 @@
-﻿using Penny.Domain.Accounts;
+﻿using Penny.Domain.Account;
 
 namespace Penny.Api.Account
 {

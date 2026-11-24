@@ -1,4 +1,4 @@
-﻿namespace Penny.Domain.Accounts;
+﻿namespace Penny.Domain.Account;
 
 public sealed class Account
 {

@@ -220,7 +220,7 @@ namespace Penny.Infrastructure.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Penny.Domain.Accounts.Account", b =>
+            modelBuilder.Entity("Penny.Domain.Account.Account", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -253,7 +253,7 @@ namespace Penny.Infrastructure.Data.Migrations
                     b.ToTable("Account", (string)null);
                 });
 
-            modelBuilder.Entity("Penny.Domain.Categories.Category", b =>
+            modelBuilder.Entity("Penny.Domain.Category.Category", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -276,7 +276,7 @@ namespace Penny.Infrastructure.Data.Migrations
                     b.ToTable("Category", (string)null);
                 });
 
-            modelBuilder.Entity("Penny.Domain.Categories.Subcategory", b =>
+            modelBuilder.Entity("Penny.Domain.Category.Subcategory", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -296,7 +296,7 @@ namespace Penny.Infrastructure.Data.Migrations
                     b.ToTable("Subcategory", (string)null);
                 });
 
-            modelBuilder.Entity("Penny.Domain.Movements.Movement", b =>
+            modelBuilder.Entity("Penny.Domain.Movement.Movement", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -393,7 +393,7 @@ namespace Penny.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Penny.Domain.Accounts.Account", b =>
+            modelBuilder.Entity("Penny.Domain.Account.Account", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
                         .WithMany()
@@ -402,7 +402,7 @@ namespace Penny.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Penny.Domain.Categories.Category", b =>
+            modelBuilder.Entity("Penny.Domain.Category.Category", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
                         .WithMany()
@@ -411,30 +411,30 @@ namespace Penny.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Penny.Domain.Categories.Subcategory", b =>
+            modelBuilder.Entity("Penny.Domain.Category.Subcategory", b =>
                 {
-                    b.HasOne("Penny.Domain.Categories.Category", null)
+                    b.HasOne("Penny.Domain.Category.Category", null)
                         .WithMany()
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Penny.Domain.Movements.Movement", b =>
+            modelBuilder.Entity("Penny.Domain.Movement.Movement", b =>
                 {
-                    b.HasOne("Penny.Domain.Accounts.Account", null)
+                    b.HasOne("Penny.Domain.Account.Account", null)
                         .WithMany()
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Penny.Domain.Categories.Category", null)
+                    b.HasOne("Penny.Domain.Category.Category", null)
                         .WithMany()
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Penny.Domain.Categories.Subcategory", null)
+                    b.HasOne("Penny.Domain.Category.Subcategory", null)
                         .WithMany()
                         .HasForeignKey("CategoryId", "SubcategoryId")
                         .HasPrincipalKey("CategoryId", "Id")

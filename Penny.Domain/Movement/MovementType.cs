@@ -1,4 +1,4 @@
-﻿namespace Penny.Domain.Movements;
+﻿namespace Penny.Domain.Movement;
 
 public enum MovementType
 {

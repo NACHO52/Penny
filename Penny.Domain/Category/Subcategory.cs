@@ -1,4 +1,4 @@
-﻿namespace Penny.Domain.Categories;
+﻿namespace Penny.Domain.Category;
 
 public sealed class Subcategory
 {

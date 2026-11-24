@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
-using Penny.Domain.Accounts;
-using Penny.Domain.Categories;
-using Penny.Domain.Movements;
+using Penny.Domain.Account;
+using Penny.Domain.Category;
+using Penny.Domain.Movement;
 
 
 namespace Penny.Infrastructure.Data;

@@ -1,4 +1,4 @@
-﻿using AccountEntity = Penny.Domain.Accounts.Account;
+﻿using AccountEntity = Penny.Domain.Account.Account;
 
 namespace Penny.Api.Account;
 
