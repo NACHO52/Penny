@@ -362,7 +362,7 @@ async function toggleForm(form: "category" | "subcategory") {
     </template>
     <dialog
       ref="deleteDialog"
-      class="category-dialog"
+      class="app-dialog"
       aria-labelledby="delete-category-title"
       aria-describedby="delete-category-description"
       @cancel="deleting && $event.preventDefault()"
@@ -374,12 +374,12 @@ async function toggleForm(form: "category" | "subcategory") {
       <p id="delete-category-description">
         {{ deleteError || text.deleteConfirmation(deletionTarget?.subcategory?.name ?? deletionTarget?.category.name ?? "") }}
       </p>
-      <form v-if="deleteError" method="dialog" class="category-dialog-actions">
+      <form v-if="deleteError" method="dialog" class="app-dialog-actions">
         <button ref="deleteErrorButton" class="auth-submit" type="submit" aria-describedby="delete-category-description">
           {{ text.close }}
         </button>
       </form>
-      <form v-else class="category-dialog-actions" @submit.prevent="finishDeletion">
+      <form v-else class="app-dialog-actions" @submit.prevent="finishDeletion">
         <button type="button" autofocus :disabled="deleting" @click="deleteDialog?.close()">{{ text.cancel }}</button>
         <button class="category-delete-confirm" type="submit" :disabled="deleting">
           {{ deleting ? text.deleting : text.delete }}
@@ -388,7 +388,7 @@ async function toggleForm(form: "category" | "subcategory") {
     </dialog>
     <dialog
       ref="renameDialog"
-      class="category-dialog"
+      class="app-dialog"
       aria-labelledby="rename-category-title"
       @cancel="saving && $event.preventDefault()"
       @close="resetRename"
@@ -402,7 +402,7 @@ async function toggleForm(form: "category" | "subcategory") {
           <input id="rename-name" v-model="renameName" name="name" pattern=".*\S.*" required autofocus :readonly="saving" />
         </div>
         <p v-if="renameError" class="auth-error" role="alert">{{ renameError }}</p>
-        <div class="category-dialog-actions">
+        <div class="app-dialog-actions">
           <button type="button" :disabled="saving" @click="renameDialog?.close()">{{ text.cancel }}</button>
           <button class="auth-submit" type="submit" :disabled="saving">{{ saving ? text.saving : text.saveName }}</button>
         </div>

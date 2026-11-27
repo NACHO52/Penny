@@ -148,7 +148,7 @@ function openCategories() {
 <template>
   <dialog
     ref="dialog"
-    class="category-dialog new-movement-dialog"
+    class="app-dialog new-movement-dialog"
     aria-labelledby="new-movement-title"
     @cancel="saving && $event.preventDefault()"
     @close="cancelCategoryRequest"
@@ -219,7 +219,7 @@ function openCategories() {
         <small id="movement-amount-hint">{{ text.amountHint }}</small>
       </div>
       <p v-if="saveError" class="auth-error" role="alert">{{ saveError }}</p>
-      <footer class="category-dialog-actions">
+      <footer class="app-dialog-actions">
         <button ref="cancelButton" type="button" :disabled="saving" @click="dialog?.close()">{{ uncertain ? text.close : text.cancel }}</button>
         <button class="auth-submit" type="submit" :disabled="saving || loading || loadError || !categories.length || uncertain">
           {{ saving ? text.saving : text.save }}

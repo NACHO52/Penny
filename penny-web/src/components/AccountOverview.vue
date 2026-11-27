@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { nextTick, onMounted, ref, watch } from "vue";
 import { es } from "../locales/es";
 import { formatCurrency, type Account, type CurrencyCode } from "../account";
 
@@ -19,6 +19,11 @@ const status = ref("");
 const name = ref("");
 const currencyCode = ref<CurrencyCode>(1);
 const initialBalance = ref("");
+const renameDialog = ref<HTMLDialogElement>();
+const renameAccountId = ref<number>();
+const renameName = ref("");
+const renameError = ref("");
+const renaming = ref(false);
 
 onMounted(loadAccounts);
 watch(accounts, (value) => emit("accounts-changed", value));
@@ -62,6 +67,8 @@ async function createAccount() {
       emit("session-expired");
     } else if (response.status === 400) {
       saveError.value = text.rejected;
+    } else if (response.status === 409) {
+      loadError.value = text.duplicateName;
     } else if (response.status === 201) {
       accounts.value = [await response.json()];
       status.value = text.created;
@@ -75,6 +82,55 @@ async function createAccount() {
   }
 }
 
+async function openRename(account: Account) {
+  if (renaming.value || renameDialog.value?.open) return;
+
+  renameAccountId.value = account.id;
+  renameName.value = account.name;
+  renameError.value = "";
+  status.value = "";
+  await nextTick();
+  renameDialog.value?.showModal();
+}
+
+async function renameAccount() {
+  const accountId = renameAccountId.value;
+  const newName = renameName.value.trim();
+  if (accountId === undefined || !newName || renaming.value) return;
+
+  renaming.value = true;
+  renameError.value = "";
+  try {
+    const response = await fetch("/account/" + accountId, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (response.status === 401) {
+      emit("session-expired");
+      return;
+    }
+    if (response.status === 409) {
+      renameError.value = text.duplicateName;
+      return;
+    }
+    if (response.status === 404) {
+      renameError.value = text.accountUnavailable;
+      return;
+    }
+    if (response.status !== 204) throw new Error();
+
+    accounts.value = accounts.value?.map((account) =>
+      account.id === accountId ? { ...account, name: newName } : account,
+    ) ?? null;
+    status.value = text.renamed;
+    renameDialog.value?.close();
+  } catch {
+    renameError.value = text.renameError;
+  } finally {
+    renaming.value = false;
+  }
+}
 </script>
 
 <template>
@@ -131,16 +187,53 @@ async function createAccount() {
           <dd>{{ formatCurrency(account.initialBalance, account.currencyCode) }}</dd>
         </dl>
         <h3>{{ account.name }}</h3>
-        <button
-          class="account-new-movement"
-          type="button"
-          :aria-label="es.movement.newForAccount(account.name)"
-          @click="emit('new-movement', account.id)"
-        >
-          <span aria-hidden="true">+</span> {{ es.home.newMovement }}
-        </button>
+        <div class="account-actions">
+          <button
+            class="account-new-movement"
+            type="button"
+            :aria-label="es.movement.newForAccount(account.name)"
+            @click="emit('new-movement', account.id)"
+          >
+            <span aria-hidden="true">+</span> {{ es.home.newMovement }}
+          </button>
+          <button
+            class="account-rename"
+            type="button"
+            :aria-label="text.editNamed(account.name)"
+            @click="openRename(account)"
+          >
+            {{ text.editName }}
+          </button>
+        </div>
       </div>
     </template>
+    <dialog
+      ref="renameDialog"
+      class="app-dialog"
+      aria-labelledby="rename-account-title"
+      @cancel="renaming && $event.preventDefault()"
+    >
+      <h1 id="rename-account-title">{{ text.editName }}</h1>
+      <form class="auth-form" @submit.prevent="renameAccount">
+        <div class="auth-field">
+          <label for="rename-account-name">{{ text.name }}</label>
+          <input
+            id="rename-account-name"
+            v-model="renameName"
+            name="name"
+            pattern=".*\S.*"
+            required
+            autofocus
+            :readonly="renaming"
+          />
+        </div>
+        <p v-if="renameError" class="auth-error" role="alert">{{ renameError }}</p>
+        <div class="app-dialog-actions">
+          <button type="button" :disabled="renaming" @click="renameDialog?.close()">{{ text.cancel }}</button>
+          <button class="auth-submit" type="submit" :disabled="renaming">{{ renaming ? text.renaming : text.saveName }}</button>
+        </div>
+      </form>
+    </dialog>
   </section>
   <slot v-else :accounts="accounts" :loading="loading" :load-error="loadError" :retry="loadAccounts" />
 </template>

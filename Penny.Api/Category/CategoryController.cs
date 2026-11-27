@@ -70,7 +70,7 @@ public sealed class CategoryController : ControllerBase
         }
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        if (!await LockOwnerAsync(userId, cancellationToken))
+        if (!await _db.LockUserAsync(userId, cancellationToken))
         {
             return Unauthorized();
         }
@@ -108,7 +108,7 @@ public sealed class CategoryController : ControllerBase
         }
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        if (!await LockOwnerAsync(userId, cancellationToken))
+        if (!await _db.LockUserAsync(userId, cancellationToken))
         {
             return Unauthorized();
         }
@@ -152,7 +152,7 @@ public sealed class CategoryController : ControllerBase
         }
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        if (!await LockOwnerAsync(userId, cancellationToken))
+        if (!await _db.LockUserAsync(userId, cancellationToken))
         {
             return Unauthorized();
         }
@@ -191,7 +191,7 @@ public sealed class CategoryController : ControllerBase
         }
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        if (!await LockOwnerAsync(userId, cancellationToken))
+        if (!await _db.LockUserAsync(userId, cancellationToken))
         {
             return Unauthorized();
         }
@@ -310,11 +310,4 @@ public sealed class CategoryController : ControllerBase
             EF.Functions.Collate(item.Name.Trim(), NameCollation) == name, cancellationToken);
     }
 
-    private Task<bool> LockOwnerAsync(string userId, CancellationToken cancellationToken)
-    {
-        // Hold an update lock on the owner until the name check and insert are complete.
-        return _db.Users
-            .FromSqlInterpolated($"SELECT * FROM [AspNetUsers] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {userId}")
-            .AnyAsync(cancellationToken);
-    }
 }
