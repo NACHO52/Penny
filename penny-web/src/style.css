@@ -168,6 +168,17 @@ button:disabled {
   box-shadow: 0 0 0 2px rgb(15 23 42 / 8%);
 }
 
+.auth-field :is(input, select)[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+.field-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-error);
+  font-size: 0.875rem;
+}
+
 .password-field {
   position: relative;
 }

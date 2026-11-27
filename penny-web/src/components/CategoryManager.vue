@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import { es } from "../locales/es";
+import { useFieldValidation } from "../fieldValidation";
 
 type Subcategory = { id: number; name: string };
 type Category = { id: number; name: string; subcategories: Subcategory[] };
@@ -20,7 +21,10 @@ const selectedCategory = computed(() => categories.value.find((category) => cate
 const loading = ref(true);
 const saving = ref(false);
 const error = ref("");
-const duplicateError = ref("");
+const createValidation = useFieldValidation({
+  "category-name": es.validation.name,
+  "subcategory-name": es.validation.name,
+});
 const deleteError = ref("");
 const deleting = ref(false);
 const deletionTarget = ref<CategoryTarget>();
@@ -30,6 +34,7 @@ const renameTarget = ref<CategoryTarget>();
 const renameDialog = ref<HTMLDialogElement>();
 const renameName = ref("");
 const renameError = ref("");
+const renameValidation = useFieldValidation({ "rename-name": es.validation.name });
 const listHeading = ref<HTMLHeadingElement>();
 const status = ref("");
 const byName = new Intl.Collator("es-AR");
@@ -39,7 +44,7 @@ onMounted(loadCategories);
 async function loadCategories() {
   loading.value = true;
   error.value = "";
-  duplicateError.value = "";
+  createValidation.reset();
   try {
     const response = await fetch("/category", { cache: "no-store" });
     if (response.status === 401) {
@@ -49,7 +54,7 @@ async function loadCategories() {
     if (!response.ok) throw new Error();
 
     categories.value = await response.json();
-    if (!selectedCategory.value) parentId.value = categories.value[0]?.id;
+    if (!selectedCategory.value) parentId.value = undefined;
   } catch {
     error.value = text.loadError;
   } finally {
@@ -59,11 +64,12 @@ async function loadCategories() {
 
 async function createCategory(parent?: Category) {
   const input = parent ? subcategoryName : categoryName;
+  const field = parent ? "subcategory-name" : "category-name";
   const name = input.value.trim();
   if (!name || loading.value || saving.value || deleting.value || error.value) return;
 
   saving.value = true;
-  duplicateError.value = "";
+  delete createValidation.errors[field];
   status.value = "";
   try {
     const path = parent ? "/category/" + parent.id + "/subcategory" : "/category";
@@ -77,7 +83,7 @@ async function createCategory(parent?: Category) {
       return;
     }
     if (response.status === 409) {
-      duplicateError.value = parent ? text.duplicateSubcategory : text.duplicateCategory;
+      createValidation.errors[field] = parent ? text.duplicateSubcategory : text.duplicateCategory;
       return;
     }
     if (response.status !== 201) throw new Error();
@@ -94,6 +100,7 @@ async function createCategory(parent?: Category) {
       parentId.value = category.id;
       subcategoryFormOpen.value = false;
       subcategoryName.value = "";
+      delete createValidation.errors["subcategory-name"];
       status.value = text.categoryCreated;
     }
     input.value = "";
@@ -112,7 +119,7 @@ function selectCategory(id: number) {
   parentId.value = parentId.value === id ? undefined : id;
   subcategoryFormOpen.value = false;
   subcategoryName.value = "";
-  duplicateError.value = "";
+  delete createValidation.errors["subcategory-name"];
 }
 
 function itemPath({ category, subcategory }: CategoryTarget) {
@@ -149,7 +156,7 @@ async function saveName() {
       return;
     }
     if (response.status === 409) {
-      renameError.value = subcategory ? text.duplicateSubcategory : text.duplicateCategory;
+      renameValidation.errors["rename-name"] = subcategory ? text.duplicateSubcategory : text.duplicateCategory;
       return;
     }
     if (response.status === 404) {
@@ -177,6 +184,7 @@ async function saveName() {
 function resetRename() {
   renameTarget.value = undefined;
   renameError.value = "";
+  renameValidation.reset();
 }
 
 async function confirmDeletion(category: Category, subcategory?: Subcategory) {
@@ -237,7 +245,7 @@ function resetDeletion() {
 }
 
 async function toggleForm(form: "category" | "subcategory") {
-  duplicateError.value = "";
+  delete createValidation.errors[form === "category" ? "category-name" : "subcategory-name"];
   const open = form === "category" ? categoryFormOpen : subcategoryFormOpen;
   open.value = !open.value;
   if (open.value) {
@@ -321,6 +329,8 @@ async function toggleForm(form: "category" | "subcategory") {
                 :action="'/category/' + category.id + '/subcategory'"
                 method="post"
                 @submit.prevent="createSubcategory"
+                @invalid.capture.prevent="createValidation.invalid"
+                @input="createValidation.clearValidError"
               >
                 <div class="auth-field">
                   <label for="subcategory-name">{{ text.subcategoryName }}</label>
@@ -332,9 +342,12 @@ async function toggleForm(form: "category" | "subcategory") {
                     pattern=".*\S.*"
                     required
                     :readonly="saving"
+                    v-bind="createValidation.attributes('subcategory-name')"
                   />
+                  <p v-if="createValidation.errors['subcategory-name']" id="subcategory-name-error" class="field-error" role="alert">
+                    {{ createValidation.errors["subcategory-name"] }}
+                  </p>
                 </div>
-                <p v-if="duplicateError === text.duplicateSubcategory" class="auth-error" role="alert">{{ duplicateError }}</p>
                 <button class="auth-submit" type="submit" :disabled="saving || deleting">{{ text.createSubcategory }}</button>
               </form>
             </div>
@@ -342,12 +355,22 @@ async function toggleForm(form: "category" | "subcategory") {
         </section>
         <section v-show="categoryFormOpen" id="category-form" class="account-panel category-create">
           <h2 id="new-category">{{ text.newCategory }}</h2>
-          <form class="auth-form" aria-labelledby="new-category" action="/category" method="post" @submit.prevent="createCategory()">
+          <form
+            class="auth-form"
+            aria-labelledby="new-category"
+            action="/category"
+            method="post"
+            @submit.prevent="createCategory()"
+            @invalid.capture.prevent="createValidation.invalid"
+            @input="createValidation.clearValidError"
+          >
             <div class="auth-field">
               <label for="category-name">{{ text.categoryName }}</label>
-              <input id="category-name" ref="categoryInput" v-model="categoryName" name="name" pattern=".*\S.*" required :readonly="saving" />
+              <input id="category-name" ref="categoryInput" v-model="categoryName" name="name" pattern=".*\S.*" required :readonly="saving" v-bind="createValidation.attributes('category-name')" />
+              <p v-if="createValidation.errors['category-name']" id="category-name-error" class="field-error" role="alert">
+                {{ createValidation.errors["category-name"] }}
+              </p>
             </div>
-            <p v-if="duplicateError === text.duplicateCategory" class="auth-error" role="alert">{{ duplicateError }}</p>
             <button class="auth-submit" type="submit" :disabled="saving || deleting">{{ text.createCategory }}</button>
           </form>
         </section>
@@ -396,10 +419,13 @@ async function toggleForm(form: "category" | "subcategory") {
       <h1 id="rename-category-title">
         {{ renameTarget?.subcategory ? text.renameSubcategory : text.renameCategory }}
       </h1>
-      <form class="auth-form" @submit.prevent="saveName">
+      <form class="auth-form" @submit.prevent="saveName" @invalid.capture.prevent="renameValidation.invalid" @input="renameValidation.clearValidError">
         <div class="auth-field">
           <label for="rename-name">{{ renameTarget?.subcategory ? text.subcategoryName : text.categoryName }}</label>
-          <input id="rename-name" v-model="renameName" name="name" pattern=".*\S.*" required autofocus :readonly="saving" />
+          <input id="rename-name" v-model="renameName" name="name" pattern=".*\S.*" required autofocus :readonly="saving" v-bind="renameValidation.attributes('rename-name')" />
+          <p v-if="renameValidation.errors['rename-name']" id="rename-name-error" class="field-error" role="alert">
+            {{ renameValidation.errors["rename-name"] }}
+          </p>
         </div>
         <p v-if="renameError" class="auth-error" role="alert">{{ renameError }}</p>
         <div class="app-dialog-actions">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from "vue";
 import { es } from "../locales/es";
+import { useFieldValidation } from "../fieldValidation";
 import { formatCurrency, type Account, type CurrencyCode } from "../account";
 
 const props = defineProps<{ showOverview: boolean; movementRevision: number }>();
@@ -23,6 +24,7 @@ const renameDialog = ref<HTMLDialogElement>();
 const renameAccountId = ref<number>();
 const renameName = ref("");
 const renameError = ref("");
+const renameValidation = useFieldValidation({ "rename-account-name": es.validation.name });
 const renaming = ref(false);
 
 onMounted(loadAccounts);
@@ -89,6 +91,7 @@ async function openRename(account: Account) {
   renameAccountId.value = account.id;
   renameName.value = account.name;
   renameError.value = "";
+  renameValidation.reset();
   status.value = "";
   await nextTick();
   renameDialog.value?.showModal();
@@ -112,7 +115,7 @@ async function renameAccount() {
       return;
     }
     if (response.status === 409) {
-      renameError.value = text.duplicateName;
+      renameValidation.errors["rename-account-name"] = text.duplicateName;
       return;
     }
     if (response.status === 404) {
@@ -215,7 +218,7 @@ async function renameAccount() {
       @cancel="renaming && $event.preventDefault()"
     >
       <h1 id="rename-account-title">{{ text.editName }}</h1>
-      <form class="auth-form" @submit.prevent="renameAccount">
+      <form class="auth-form" @submit.prevent="renameAccount" @invalid.capture.prevent="renameValidation.invalid" @input="renameValidation.clearValidError">
         <div class="auth-field">
           <label for="rename-account-name">{{ text.name }}</label>
           <input
@@ -226,7 +229,11 @@ async function renameAccount() {
             required
             autofocus
             :readonly="renaming"
+            v-bind="renameValidation.attributes('rename-account-name')"
           />
+          <p v-if="renameValidation.errors['rename-account-name']" id="rename-account-name-error" class="field-error" role="alert">
+            {{ renameValidation.errors["rename-account-name"] }}
+          </p>
         </div>
         <p v-if="renameError" class="auth-error" role="alert">{{ renameError }}</p>
         <div class="app-dialog-actions">

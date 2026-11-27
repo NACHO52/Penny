@@ -213,6 +213,10 @@ The shape architecture delivers an approachable, contemporary finish balanced ag
 - **Secondary / Subtle:** Background White, border 1px solid Slate 200 (`#e2e8f0`), text Slate 700 (`#334155`). Hover introduces a Slate 50 background wash.
 - **Destructive:** Borderless or tinted Rose 50 background with text Rose 600. Active states shift to solid Rose 600 with white text.
 
+### Modal Forms
+
+- Show field validation messages in red directly below the affected control. Link the message to that control and focus the first invalid field when submission fails.
+
 ### Metric & KPI Cards
 - Housed in pure white `rounded-xl` containers bordered by 1px Slate 200.
 - Top section holds the small uppercase label in Slate 500 alongside contextual icons or secondary action dots.

@@ -20,7 +20,7 @@ const submitting = ref(false);
 const error = ref("");
 const currentUser = ref<CurrentUser | null>(null);
 const accounts = ref<Account[] | null>(null);
-const movementAccountId = ref<number>();
+const movementAccountId = ref(readMovementAccountId());
 const movementDialog = ref<InstanceType<typeof NewMovementDialog>>();
 const movementRevision = ref(0);
 const movementStatus = ref("");
@@ -60,8 +60,43 @@ function readPage(): Page {
   return pages.find((page) => pagePaths[page] === path) ?? "home";
 }
 
+function readMovementAccountId() {
+  const raw = new URLSearchParams(window.location.search).get("accountId");
+  if (!raw || !/^[1-9]\d*$/.test(raw)) return;
+
+  const id = Number(raw);
+  return Number.isSafeInteger(id) ? id : undefined;
+}
+
 function syncPage() {
   activePage.value = readPage();
+  if (activePage.value === "movements") {
+    movementAccountId.value = readMovementAccountId();
+  }
+}
+
+function movementPath(accountId: number | undefined) {
+  const path = readPage() === "movements" ? window.location.href : pagePaths.movements;
+  const url = new URL(path, window.location.origin);
+  url.pathname = pagePaths.movements;
+  if (accountId === undefined) {
+    url.searchParams.delete("accountId");
+  } else {
+    url.searchParams.set("accountId", String(accountId));
+  }
+  return url.pathname + url.search + url.hash;
+}
+
+function currentPath() {
+  return window.location.pathname + window.location.search + window.location.hash;
+}
+
+function selectMovementAccount(accountId: number) {
+  const path = movementPath(accountId);
+  if (path === currentPath()) return;
+
+  window.history.pushState(null, "", path);
+  syncPage();
 }
 
 function navigate(event: MouseEvent, page: Page) {
@@ -71,9 +106,9 @@ function navigate(event: MouseEvent, page: Page) {
   return openPage(page);
 }
 
-async function openPage(page: Page) {
-  const path = pagePaths[page];
-  if (window.location.pathname === path) return;
+async function openPage(page: Page, accountId = movementAccountId.value) {
+  const path = page === "movements" ? movementPath(accountId) : pagePaths[page];
+  if (path === currentPath()) return;
 
   window.history.pushState(null, "", path);
   syncPage();
@@ -82,11 +117,19 @@ async function openPage(page: Page) {
 }
 
 function movementSaved(accountId: number) {
-  movementAccountId.value = accountId;
   movementRevision.value++;
   movementStatus.value = es.movement.created;
-  return openPage("movements");
+  return openPage("movements", accountId);
 }
+
+watch([accounts, activePage, movementAccountId], ([availableAccounts, page, accountId]) => {
+  if (page !== "movements" || availableAccounts === null) return;
+
+  const account = availableAccounts.find((item) => item.id === accountId) ?? availableAccounts[0];
+  const path = movementPath(account?.id);
+  if (path !== currentPath()) window.history.replaceState(window.history.state, "", path);
+  movementAccountId.value = account?.id;
+});
 
 watch([currentUser, activePage], ([user, page]) => {
   document.title = user && page !== "home" ? pageTitles[page] + " | Penny" : "Penny";
@@ -145,6 +188,7 @@ async function loadCurrentUser() {
 
     if (!response.ok) return false;
 
+    syncPage();
     currentUser.value = await response.json();
     return true;
   } catch {
@@ -195,7 +239,7 @@ async function signOut() {
           {{ es.home.title }}
         </a>
         <a
-          :href="pagePaths.movements"
+          :href="movementPath(movementAccountId)"
           :aria-current="activePage === 'movements' ? 'page' : undefined"
           @click="navigate($event, 'movements')"
         >
@@ -262,8 +306,9 @@ async function signOut() {
             </template>
             <MovementHistory
               v-else-if="accounts?.length"
-              v-model:account-id="movementAccountId"
+              :account-id="movementAccountId"
               :accounts="accounts"
+              @account-selected="selectMovementAccount"
               @new-movement="movementDialog?.open($event)"
               @session-expired="clearSession"
             />

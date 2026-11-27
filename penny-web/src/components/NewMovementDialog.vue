@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import type { Account } from "../account";
 import { es } from "../locales/es";
+import { useFieldValidation } from "../fieldValidation";
 
 type Category = { id: number; name: string; subcategories: { id: number; name: string }[] };
 type MovementType = keyof typeof es.movement.types;
@@ -9,6 +10,10 @@ type MovementType = keyof typeof es.movement.types;
 const props = defineProps<{ accounts: Account[] }>();
 const emit = defineEmits<{ saved: [accountId: number]; "open-categories": []; "session-expired": [] }>();
 const text = es.movement;
+const validation = useFieldValidation({
+  "movement-amount": text.invalidAmount,
+  "movement-description": text.invalidDescription,
+});
 const dialog = ref<HTMLDialogElement>();
 const amountInput = ref<HTMLInputElement>();
 const cancelButton = ref<HTMLButtonElement>();
@@ -19,8 +24,10 @@ const isExpense = computed(() => type.value === 2);
 const amount = ref("");
 const description = ref("");
 const movementDate = ref("");
-const categoryId = ref<number>();
-const subcategoryId = ref<number | null>(null);
+const categoryId = ref<number | "">("");
+const categoryInput = ref<HTMLSelectElement>();
+const subcategoryId = ref<number | "" | "other">("");
+const subcategoryInput = ref<HTMLSelectElement>();
 const categories = ref<Category[]>([]);
 const selectedAccount = computed(() => props.accounts.find((account) => account.id === accountId.value));
 const selectedCategory = computed(() => categories.value.find((category) => category.id === categoryId.value));
@@ -126,10 +133,11 @@ function open(selectedAccountId: number) {
   const day = String(today.getDate()).padStart(2, "0");
   movementDate.value = today.getFullYear() + "-" + month + "-" + day;
   categories.value = [];
-  categoryId.value = undefined;
-  subcategoryId.value = null;
+  categoryId.value = "";
+  subcategoryId.value = "";
   uncertain.value = false;
   saveError.value = "";
+  validation.reset();
   dialog.value?.showModal();
   void loadCategories();
 }
@@ -152,9 +160,10 @@ async function loadCategories() {
     const result: Category[] = await response.json();
     if (request.signal.aborted) return;
     categories.value = result;
-    if (!selectedCategory.value) categoryId.value = undefined;
-    if (!selectedCategory.value?.subcategories.some((item) => item.id === subcategoryId.value)) {
-      subcategoryId.value = null;
+    if (!selectedCategory.value) categoryId.value = "";
+    if (!selectedCategory.value || (typeof subcategoryId.value === "number" &&
+        !selectedCategory.value.subcategories.some((item) => item.id === subcategoryId.value))) {
+      subcategoryId.value = "";
     }
   } catch {
     if (!request.signal.aborted) loadError.value = true;
@@ -163,15 +172,31 @@ async function loadCategories() {
   }
 }
 
-async function saveMovement() {
+async function saveMovement(event: SubmitEvent) {
   const account = selectedAccount.value;
   if (!account || saving.value || uncertain.value) return;
   const category = isExpense.value ? selectedCategory.value : undefined;
-  if (isExpense.value && (!category || loading.value || loadError.value)) return;
+  if (isExpense.value && (loading.value || loadError.value)) return;
+
+  const form = event.currentTarget as HTMLFormElement;
+  const valid = form.checkValidity();
+  if (isExpense.value && !category) {
+    validation.errors["movement-category"] = text.categoryRequired;
+    await nextTick();
+    categoryInput.value?.focus();
+    return;
+  }
+  if (isExpense.value && subcategoryId.value === "") {
+    validation.errors["movement-subcategory"] = text.subcategoryRequired;
+    await nextTick();
+    subcategoryInput.value?.focus();
+    return;
+  }
+  if (!valid) return;
 
   const normalizedAmount = amount.value.replace(/\./g, "").replace(",", ".");
   if (!(Number(normalizedAmount) > 0)) {
-    saveError.value = text.invalidAmount;
+    validation.errors["movement-amount"] = text.invalidAmount;
     amountInput.value?.focus();
     return;
   }
@@ -187,7 +212,7 @@ async function saveMovement() {
         type: type.value,
         movementDate: movementDate.value,
         categoryId: category?.id ?? null,
-        subcategoryId: category ? subcategoryId.value : null,
+        subcategoryId: category && typeof subcategoryId.value === "number" ? subcategoryId.value : null,
         amount: normalizedAmount,
         description: description.value.trim(),
       }),
@@ -197,8 +222,15 @@ async function saveMovement() {
       return;
     }
     if (response.status === 400 || response.status === 404) {
-      saveError.value = text.rejected;
+      const failure: { code?: string } | null = await response.json().catch(() => null);
       if (isExpense.value) await loadCategories();
+      if (categories.value.length && !loadError.value && failure?.code === "invalid_category") {
+        validation.errors["movement-category"] = text.invalidCategory;
+      } else if (selectedCategory.value && !loadError.value && failure?.code === "invalid_subcategory") {
+        validation.errors["movement-subcategory"] = text.invalidSubcategory;
+      } else {
+        saveError.value = text.rejected;
+      }
       return;
     }
     if (response.status !== 201) throw new Error();
@@ -221,6 +253,11 @@ function openCategories() {
   dialog.value?.close();
   emit("open-categories");
 }
+
+function changeCategory() {
+  subcategoryId.value = "";
+  delete validation.errors["movement-subcategory"];
+}
 </script>
 
 <template>
@@ -235,13 +272,21 @@ function openCategories() {
       <h1 id="new-movement-title">{{ text.newTitle }}</h1>
       <button type="button" :aria-label="text.close" :disabled="saving" @click="dialog?.close()">×</button>
     </header>
-    <form class="auth-form" @submit.prevent="saveMovement">
+    <form
+      class="auth-form"
+      novalidate
+      @submit.prevent="saveMovement"
+      @invalid.capture.prevent="validation.invalid"
+      @input="validation.clearValidError"
+      @change="validation.clearValidError"
+    >
       <fieldset class="movement-types" :disabled="saving || uncertain">
-        <legend>{{ text.type }}</legend>
+        <legend>{{ text.type }} <span aria-hidden="true">*</span></legend>
         <label v-for="code in movementTypes" :key="code">
-          <input v-model="type" type="radio" name="type" :value="code" :autofocus="code === 2" required />
+          <input v-model="type" type="radio" name="type" :value="code" :autofocus="code === 2" required v-bind="validation.attributes('type')" />
           {{ text.types[code] }}
         </label>
+        <p v-if="validation.errors.type" id="type-error" class="field-error" role="alert">{{ validation.errors.type }}</p>
       </fieldset>
 
       <template v-if="isExpense">
@@ -256,31 +301,44 @@ function openCategories() {
         </div>
         <div v-else class="new-movement-fields">
           <div class="auth-field">
-            <label for="movement-category">{{ text.category }}</label>
-            <select id="movement-category" v-model="categoryId" name="categoryId" required :disabled="saving || uncertain" @change="subcategoryId = null">
-              <option :value="undefined" disabled>{{ text.selectCategory }}</option>
+            <label for="movement-category">{{ text.category }} <span aria-hidden="true">*</span></label>
+            <select id="movement-category" ref="categoryInput" v-model="categoryId" name="categoryId" required :disabled="saving || uncertain" @change="changeCategory" v-bind="validation.attributes('movement-category')">
+              <option value="" disabled>{{ text.selectCategory }}</option>
               <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
             </select>
+            <p v-if="validation.errors['movement-category']" id="movement-category-error" class="field-error" role="alert">
+              {{ validation.errors["movement-category"] }}
+            </p>
           </div>
           <div class="auth-field">
-            <label for="movement-subcategory">{{ text.subcategory }}</label>
-            <select id="movement-subcategory" v-model="subcategoryId" name="subcategoryId" :disabled="!selectedCategory?.subcategories.length || saving || uncertain">
-              <option :value="null">{{ text.noSubcategory }}</option>
+            <label for="movement-subcategory">{{ text.subcategory }} <span aria-hidden="true">*</span></label>
+            <select id="movement-subcategory" ref="subcategoryInput" v-model="subcategoryId" name="subcategoryId" required :disabled="!selectedCategory || saving || uncertain" v-bind="validation.attributes('movement-subcategory')">
+              <option value="" disabled>{{ text.selectSubcategory }}</option>
               <option v-for="subcategory in selectedCategory?.subcategories" :key="subcategory.id" :value="subcategory.id">{{ subcategory.name }}</option>
+              <option value="other">{{ text.otherSubcategory }}</option>
             </select>
+            <p v-if="validation.errors['movement-subcategory']" id="movement-subcategory-error" class="field-error" role="alert">
+              {{ validation.errors["movement-subcategory"] }}
+            </p>
           </div>
         </div>
       </template>
       <div class="auth-field">
-        <label for="movement-date">{{ text.date }}</label>
-        <input id="movement-date" v-model="movementDate" name="movementDate" type="date" required :readonly="saving || uncertain" />
+        <label for="movement-date">{{ text.date }} <span aria-hidden="true">*</span></label>
+        <input id="movement-date" v-model="movementDate" name="movementDate" type="date" required :readonly="saving || uncertain" v-bind="validation.attributes('movement-date')" />
+        <p v-if="validation.errors['movement-date']" id="movement-date-error" class="field-error" role="alert">
+          {{ validation.errors["movement-date"] }}
+        </p>
       </div>
       <div class="auth-field">
-        <label for="movement-description">{{ text.description }}</label>
-        <input id="movement-description" v-model="description" name="description" pattern=".*\S.*" required :readonly="saving || uncertain" />
+        <label for="movement-description">{{ text.description }} <span aria-hidden="true">*</span></label>
+        <input id="movement-description" v-model="description" name="description" pattern=".*\S.*" required :readonly="saving || uncertain" v-bind="validation.attributes('movement-description')" />
+        <p v-if="validation.errors['movement-description']" id="movement-description-error" class="field-error" role="alert">
+          {{ validation.errors["movement-description"] }}
+        </p>
       </div>
       <div class="auth-field">
-        <label for="movement-amount">{{ text.amount }}</label>
+        <label for="movement-amount">{{ text.amount }} <span aria-hidden="true">*</span></label>
         <div class="new-movement-amount">
           <span v-if="selectedAccount" aria-hidden="true">{{ es.account.currencies[selectedAccount.currencyCode] }}</span>
           <input
@@ -289,15 +347,18 @@ function openCategories() {
             :value="amount"
             name="amount"
             inputmode="decimal"
-            pattern="[0-9]{1,3}(\.[0-9]{3}){0,5},[0-9]{2}"
+            pattern="(?=.*[1-9])[0-9]{1,3}(\.[0-9]{3}){0,5},[0-9]{2}"
             placeholder="0,00"
-            aria-describedby="movement-amount-hint"
+            v-bind="validation.attributes('movement-amount', 'movement-amount-hint')"
             required
             :readonly="saving || uncertain"
             @beforeinput="handleAmountSeparator"
             @input="formatAmount"
           />
         </div>
+        <p v-if="validation.errors['movement-amount']" id="movement-amount-error" class="field-error" role="alert">
+          {{ validation.errors["movement-amount"] }}
+        </p>
         <small id="movement-amount-hint">{{ text.amountHint }}</small>
       </div>
       <p v-if="saveError" class="auth-error" role="alert">{{ saveError }}</p>

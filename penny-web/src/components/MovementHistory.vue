@@ -14,12 +14,15 @@ type Movement = {
 };
 type Category = { id: number; name: string; subcategories: { id: number; name: string }[] };
 
-const props = defineProps<{ accounts: Account[] }>();
-const emit = defineEmits<{ "session-expired": []; "new-movement": [accountId: number] }>();
+const props = defineProps<{ accounts: Account[]; accountId?: number }>();
+const emit = defineEmits<{
+  "session-expired": [];
+  "new-movement": [accountId: number];
+  "account-selected": [accountId: number];
+}>();
 const text = es.movement;
-const accountId = defineModel<number | undefined>("accountId", { required: true });
 const account = computed(() =>
-  props.accounts.find((item) => item.id === accountId.value) ?? props.accounts[0],
+  props.accounts.find((item) => item.id === props.accountId) ?? props.accounts[0],
 );
 const movements = ref<Movement[]>([]);
 const categories = ref(new Map<number, Category>());
@@ -27,6 +30,14 @@ const loading = ref(true);
 const error = ref(false);
 const retry = ref(0);
 const dateFormat = new Intl.DateTimeFormat("es-AR", { timeZone: "UTC" });
+
+function subcategoryName(movement: Movement) {
+  if (movement.subcategoryId === null) return movement.type === 2 ? text.otherSubcategory : "—";
+  if (movement.categoryId === null) return "—";
+
+  return categories.value.get(movement.categoryId)?.subcategories
+    .find((item) => item.id === movement.subcategoryId)?.name ?? "—";
+}
 
 watch([account, retry], async ([selectedAccount], _, onCleanup) => {
   if (!selectedAccount) return;
@@ -73,7 +84,11 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
     <div class="movement-toolbar">
       <div class="movement-account">
         <label for="movement-account">{{ text.account }}</label>
-        <select id="movement-account" :value="account.id" @change="accountId = Number(($event.target as HTMLSelectElement).value)">
+        <select
+          id="movement-account"
+          :value="account.id"
+          @change="emit('account-selected', Number(($event.target as HTMLSelectElement).value))"
+        >
           <option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.name }}</option>
         </select>
       </div>
@@ -108,7 +123,7 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
         <tbody>
           <tr v-for="movement in movements" :key="movement.id">
             <td>{{ movement.categoryId === null ? "—" : categories.get(movement.categoryId)?.name ?? "—" }}</td>
-            <td>{{ movement.categoryId === null ? "—" : categories.get(movement.categoryId)?.subcategories.find((item) => item.id === movement.subcategoryId)?.name ?? "—" }}</td>
+            <td>{{ subcategoryName(movement) }}</td>
             <td><time :datetime="movement.movementDate">{{ dateFormat.format(new Date(movement.movementDate)) }}</time></td>
             <th scope="row">{{ movement.description }}</th>
             <td :class="movement.type === 1 ? 'movement-income' : 'movement-expense'">

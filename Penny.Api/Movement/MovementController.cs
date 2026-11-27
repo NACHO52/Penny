@@ -61,7 +61,7 @@ public sealed class MovementController : ControllerBase
                 !await _db.Categories.AnyAsync(
                     category => category.Id == categoryId && category.UserId == userId, cancellationToken))
             {
-                return BadRequest(new { error = "Select a valid category." });
+                return BadRequest(new { code = "invalid_category", error = "Select a valid category." });
             }
 
             if (request.SubcategoryId is int subcategoryId &&
@@ -69,7 +69,7 @@ public sealed class MovementController : ControllerBase
                     subcategory => subcategory.Id == subcategoryId && subcategory.CategoryId == categoryId,
                     cancellationToken))
             {
-                return BadRequest(new { error = "Select a subcategory from the selected category." });
+                return BadRequest(new { code = "invalid_subcategory", error = "Select a subcategory from the selected category." });
             }
         }
 
