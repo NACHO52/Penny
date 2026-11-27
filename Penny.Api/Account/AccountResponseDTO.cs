@@ -2,8 +2,11 @@
 
 namespace Penny.Api.Account;
 
+using System.Text.Json.Serialization;
+
 public sealed record AccountResponseDTO(
     int Id,
     string Name,
     CurrencyCode CurrencyCode,
-    decimal InitialBalance);
+    decimal InitialBalance,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal CurrentBalance);

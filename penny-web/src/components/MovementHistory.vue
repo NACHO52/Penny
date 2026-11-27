@@ -7,7 +7,7 @@ type Movement = {
   id: number;
   movementDate: string;
   description: string;
-  categoryId: number;
+  categoryId: number | null;
   subcategoryId: number | null;
   type: keyof typeof es.movement.types;
   amount: number;
@@ -107,8 +107,8 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
         </thead>
         <tbody>
           <tr v-for="movement in movements" :key="movement.id">
-            <td>{{ categories.get(movement.categoryId)?.name ?? "—" }}</td>
-            <td>{{ categories.get(movement.categoryId)?.subcategories.find((item) => item.id === movement.subcategoryId)?.name ?? "—" }}</td>
+            <td>{{ movement.categoryId === null ? "—" : categories.get(movement.categoryId)?.name ?? "—" }}</td>
+            <td>{{ movement.categoryId === null ? "—" : categories.get(movement.categoryId)?.subcategories.find((item) => item.id === movement.subcategoryId)?.name ?? "—" }}</td>
             <td><time :datetime="movement.movementDate">{{ dateFormat.format(new Date(movement.movementDate)) }}</time></td>
             <th scope="row">{{ movement.description }}</th>
             <td :class="movement.type === 1 ? 'movement-income' : 'movement-expense'">

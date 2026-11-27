@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Penny.Domain.Movement;
 using Penny.Infrastructure.Data;
 
 namespace Penny.Api.Account;
@@ -34,14 +35,24 @@ public sealed class AccountController : ControllerBase
         var accounts = await _db.Accounts
             .Where(account => account.UserId == userId)
             .OrderBy(account => account.Id)
-            .Select(account => new AccountResponseDTO(
+            .Select(account => new
+            {
                 account.Id,
                 account.Name,
                 account.CurrencyCode,
-                account.InitialBalance))
+                account.InitialBalance,
+                MovementTotal = _db.Movements
+                    .Where(movement => movement.AccountId == account.Id)
+                    .Sum(movement => movement.Type == MovementType.Income ? movement.Amount : -movement.Amount)
+            })
             .ToListAsync(cancellationToken);
 
-        return Ok(accounts);
+        return Ok(accounts.Select(account => new AccountResponseDTO(
+            account.Id,
+            account.Name,
+            account.CurrencyCode,
+            account.InitialBalance,
+            account.InitialBalance + account.MovementTotal)));
     }
 
     [HttpPost]

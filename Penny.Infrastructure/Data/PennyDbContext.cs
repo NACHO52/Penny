@@ -60,6 +60,8 @@ public class PennyDbContext : IdentityDbContext
             movement.ToTable(nameof(Movement), table =>
             {
                 table.HasCheckConstraint("CK_Movement_Amount_Positive", "[Amount] > 0");
+                table.HasCheckConstraint("CK_Movement_Category_Required",
+                    $"([Type] <> {(int)MovementType.Expense} AND [SubcategoryId] IS NULL) OR [CategoryId] IS NOT NULL");
             });
 
             movement.Property(entity => entity.Amount)

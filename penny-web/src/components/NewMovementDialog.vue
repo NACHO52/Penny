@@ -15,6 +15,7 @@ const cancelButton = ref<HTMLButtonElement>();
 const accountId = ref<number>();
 const type = ref<MovementType>(2);
 const movementTypes = [2, 1] as const;
+const isExpense = computed(() => type.value === 2);
 const amount = ref("");
 const description = ref("");
 const movementDate = ref("");
@@ -35,6 +36,82 @@ onBeforeUnmount(cancelCategoryRequest);
 
 function cancelCategoryRequest() {
   categoryRequest?.abort();
+}
+
+function handleAmountSeparator(event: InputEvent) {
+  const input = event.currentTarget as HTMLInputElement;
+  const start = input.selectionStart ?? 0;
+  const end = input.selectionEnd ?? start;
+  const comma = input.value.indexOf(",");
+  if (!event.cancelable || event.isComposing || start !== end || comma < 0) return;
+
+  if (event.inputType === "insertText" && (event.data === "," || event.data === ".")) {
+    event.preventDefault();
+    input.setSelectionRange(comma + 1, comma + 1);
+  } else if (event.inputType === "deleteContentBackward" && start === comma + 1) {
+    event.preventDefault();
+    input.setSelectionRange(comma, comma);
+  } else if (event.inputType === "deleteContentForward" && start === comma) {
+    event.preventDefault();
+    input.setSelectionRange(comma + 1, comma + 1);
+  } else if (event.inputType === "deleteContentBackward" && input.value[start - 1] === ".") {
+    input.setSelectionRange(start - 1, start - 1);
+  } else if (event.inputType === "deleteContentForward" && input.value[start] === ".") {
+    input.setSelectionRange(start + 1, start + 1);
+  }
+}
+
+function formatAmount(event: InputEvent) {
+  if (event.isComposing) return;
+
+  const input = event.currentTarget as HTMLInputElement;
+  const cursor = input.selectionStart ?? input.value.length;
+  const pasted = event.inputType === "insertFromPaste";
+  const deleting = event.inputType.startsWith("delete");
+  let raw = input.value;
+  if (raw === "." || (pasted && /^\d+\.\d{1,2}$/.test(raw))) {
+    raw = raw.replace(".", ",");
+  }
+  if (raw && !raw.includes(",") && deleting && amount.value.includes(",")) {
+    // Preserve the decimal boundary when a selection spanning the comma is deleted.
+    raw = raw.slice(0, cursor) + "," + raw.slice(cursor);
+  }
+
+  const comma = raw.indexOf(",");
+  const whole = (comma < 0 ? raw : raw.slice(0, comma)).replace(/\./g, "");
+  const fraction = comma < 0 ? "" : raw.slice(comma + 1).replace(/^,/, "");
+  if (!/^\d{0,16}$/.test(whole) || !/^\d*$/.test(fraction) || (pasted && fraction.length > 2)) {
+    input.value = amount.value;
+    input.setSelectionRange(cursor, cursor);
+    return;
+  }
+
+  if (!raw || (deleting && !whole && !/[1-9]/.test(fraction))) {
+    input.value = "";
+    amount.value = "";
+    return;
+  }
+
+  const integer = whole.replace(/^0+(?=\d)/, "") || "0";
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const formatted = grouped + "," + fraction.slice(0, 2).padEnd(2, "0");
+
+  let position: number;
+  if (comma >= 0 && cursor > comma) {
+    const centsBeforeCursor = raw.slice(comma + 1, cursor).replace(/\D/g, "").length;
+    position = grouped.length + 1 + Math.min(centsBeforeCursor, 2);
+  } else {
+    let digits = raw.slice(0, cursor).replace(/\D/g, "").length - Math.max(0, whole.length - integer.length);
+    position = 0;
+    while (digits > 0 && position < grouped.length) {
+      if (grouped[position] !== ".") digits--;
+      position++;
+    }
+  }
+
+  amount.value = formatted;
+  input.value = formatted;
+  input.setSelectionRange(position, position);
 }
 
 function open(selectedAccountId: number) {
@@ -88,10 +165,11 @@ async function loadCategories() {
 
 async function saveMovement() {
   const account = selectedAccount.value;
-  const category = selectedCategory.value;
-  if (!account || !category || loading.value || loadError.value || saving.value || uncertain.value) return;
+  if (!account || saving.value || uncertain.value) return;
+  const category = isExpense.value ? selectedCategory.value : undefined;
+  if (isExpense.value && (!category || loading.value || loadError.value)) return;
 
-  const normalizedAmount = amount.value.replace(",", ".");
+  const normalizedAmount = amount.value.replace(/\./g, "").replace(",", ".");
   if (!(Number(normalizedAmount) > 0)) {
     saveError.value = text.invalidAmount;
     amountInput.value?.focus();
@@ -108,8 +186,8 @@ async function saveMovement() {
         accountId: account.id,
         type: type.value,
         movementDate: movementDate.value,
-        categoryId: category.id,
-        subcategoryId: subcategoryId.value,
+        categoryId: category?.id ?? null,
+        subcategoryId: category ? subcategoryId.value : null,
         amount: normalizedAmount,
         description: description.value.trim(),
       }),
@@ -120,7 +198,7 @@ async function saveMovement() {
     }
     if (response.status === 400 || response.status === 404) {
       saveError.value = text.rejected;
-      await loadCategories();
+      if (isExpense.value) await loadCategories();
       return;
     }
     if (response.status !== 201) throw new Error();
@@ -166,31 +244,33 @@ function openCategories() {
         </label>
       </fieldset>
 
-      <p v-if="loading" role="status">{{ text.loadingCategories }}</p>
-      <div v-else-if="loadError">
-        <p class="auth-error" role="alert">{{ es.category.loadError }}</p>
-        <button type="button" @click="loadCategories">{{ es.category.retry }}</button>
-      </div>
-      <div v-else-if="!categories.length">
-        <p>{{ text.noCategories }}</p>
-        <button type="button" @click="openCategories">{{ text.openCategories }}</button>
-      </div>
-      <div v-else class="new-movement-fields">
-        <div class="auth-field">
-          <label for="movement-category">{{ text.category }}</label>
-          <select id="movement-category" v-model="categoryId" name="categoryId" required :disabled="saving || uncertain" @change="subcategoryId = null">
-            <option :value="undefined" disabled>{{ text.selectCategory }}</option>
-            <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
-          </select>
+      <template v-if="isExpense">
+        <p v-if="loading" role="status">{{ text.loadingCategories }}</p>
+        <div v-else-if="loadError">
+          <p class="auth-error" role="alert">{{ es.category.loadError }}</p>
+          <button type="button" @click="loadCategories">{{ es.category.retry }}</button>
         </div>
-        <div class="auth-field">
-          <label for="movement-subcategory">{{ text.subcategory }}</label>
-          <select id="movement-subcategory" v-model="subcategoryId" name="subcategoryId" :disabled="!selectedCategory?.subcategories.length || saving || uncertain">
-            <option :value="null">{{ text.noSubcategory }}</option>
-            <option v-for="subcategory in selectedCategory?.subcategories" :key="subcategory.id" :value="subcategory.id">{{ subcategory.name }}</option>
-          </select>
+        <div v-else-if="!categories.length">
+          <p>{{ text.noCategories }}</p>
+          <button type="button" @click="openCategories">{{ text.openCategories }}</button>
         </div>
-      </div>
+        <div v-else class="new-movement-fields">
+          <div class="auth-field">
+            <label for="movement-category">{{ text.category }}</label>
+            <select id="movement-category" v-model="categoryId" name="categoryId" required :disabled="saving || uncertain" @change="subcategoryId = null">
+              <option :value="undefined" disabled>{{ text.selectCategory }}</option>
+              <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+            </select>
+          </div>
+          <div class="auth-field">
+            <label for="movement-subcategory">{{ text.subcategory }}</label>
+            <select id="movement-subcategory" v-model="subcategoryId" name="subcategoryId" :disabled="!selectedCategory?.subcategories.length || saving || uncertain">
+              <option :value="null">{{ text.noSubcategory }}</option>
+              <option v-for="subcategory in selectedCategory?.subcategories" :key="subcategory.id" :value="subcategory.id">{{ subcategory.name }}</option>
+            </select>
+          </div>
+        </div>
+      </template>
       <div class="auth-field">
         <label for="movement-date">{{ text.date }}</label>
         <input id="movement-date" v-model="movementDate" name="movementDate" type="date" required :readonly="saving || uncertain" />
@@ -206,14 +286,16 @@ function openCategories() {
           <input
             id="movement-amount"
             ref="amountInput"
-            v-model="amount"
+            :value="amount"
             name="amount"
             inputmode="decimal"
-            pattern="[0-9]{1,16}([,.][0-9]{1,2})?"
+            pattern="[0-9]{1,3}(\.[0-9]{3}){0,5},[0-9]{2}"
             placeholder="0,00"
             aria-describedby="movement-amount-hint"
             required
             :readonly="saving || uncertain"
+            @beforeinput="handleAmountSeparator"
+            @input="formatAmount"
           />
         </div>
         <small id="movement-amount-hint">{{ text.amountHint }}</small>
@@ -221,7 +303,7 @@ function openCategories() {
       <p v-if="saveError" class="auth-error" role="alert">{{ saveError }}</p>
       <footer class="app-dialog-actions">
         <button ref="cancelButton" type="button" :disabled="saving" @click="dialog?.close()">{{ uncertain ? text.close : text.cancel }}</button>
-        <button class="auth-submit" type="submit" :disabled="saving || loading || loadError || !categories.length || uncertain">
+        <button class="auth-submit" type="submit" :disabled="saving || uncertain || (isExpense && (loading || loadError || !categories.length))">
           {{ saving ? text.saving : text.save }}
         </button>
       </footer>

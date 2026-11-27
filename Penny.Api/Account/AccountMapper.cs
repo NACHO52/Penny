@@ -22,6 +22,7 @@ internal static class AccountMapper
             account.Id,
             account.Name,
             account.CurrencyCode,
+            account.InitialBalance,
             account.InitialBalance);
     }
 }

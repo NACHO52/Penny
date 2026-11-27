@@ -249,6 +249,7 @@ async function signOut() {
         <AccountOverview
           :key="currentUser.id"
           :show-overview="activePage === 'home'"
+          :movement-revision="movementRevision"
           @accounts-changed="accounts = $event"
           @new-movement="movementDialog?.open($event)"
           @session-expired="clearSession"
@@ -261,7 +262,6 @@ async function signOut() {
             </template>
             <MovementHistory
               v-else-if="accounts?.length"
-              :key="movementRevision"
               v-model:account-id="movementAccountId"
               :accounts="accounts"
               @new-movement="movementDialog?.open($event)"

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Penny.Domain.Movement;
 using Penny.Infrastructure.Data;
 
 namespace Penny.Api.Movement;
@@ -54,23 +55,19 @@ public sealed class MovementController : ControllerBase
             return NotFound(new { error = "Account not found." });
         }
 
-        var ownsCategory = await _db.Categories.AnyAsync(
-            category => category.Id == request.CategoryId && category.UserId == userId,
-            cancellationToken);
-
-        if (!ownsCategory)
+        if (request.Type == MovementType.Expense)
         {
-            return BadRequest(new { error = "Select a valid category." });
-        }
+            if (request.CategoryId is not int categoryId ||
+                !await _db.Categories.AnyAsync(
+                    category => category.Id == categoryId && category.UserId == userId, cancellationToken))
+            {
+                return BadRequest(new { error = "Select a valid category." });
+            }
 
-        if (request.SubcategoryId is int subcategoryId)
-        {
-            var belongsToCategory = await _db.Subcategories.AnyAsync(
-                subcategory => subcategory.Id == subcategoryId &&
-                               subcategory.CategoryId == request.CategoryId,
-                cancellationToken);
-
-            if (!belongsToCategory)
+            if (request.SubcategoryId is int subcategoryId &&
+                !await _db.Subcategories.AnyAsync(
+                    subcategory => subcategory.Id == subcategoryId && subcategory.CategoryId == categoryId,
+                    cancellationToken))
             {
                 return BadRequest(new { error = "Select a subcategory from the selected category." });
             }

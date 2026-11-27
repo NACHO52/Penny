@@ -7,7 +7,7 @@ public sealed record MovementResponseDTO(
     int AccountId,
     MovementType Type,
     DateOnly MovementDate,
-    int CategoryId,
+    int? CategoryId,
     int? SubcategoryId,
     decimal Amount,
     string Description);

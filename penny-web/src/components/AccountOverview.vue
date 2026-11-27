@@ -3,7 +3,7 @@ import { nextTick, onMounted, ref, watch } from "vue";
 import { es } from "../locales/es";
 import { formatCurrency, type Account, type CurrencyCode } from "../account";
 
-defineProps<{ showOverview: boolean }>();
+const props = defineProps<{ showOverview: boolean; movementRevision: number }>();
 const emit = defineEmits<{
   "session-expired": [];
   "accounts-changed": [Account[] | null];
@@ -26,6 +26,7 @@ const renameError = ref("");
 const renaming = ref(false);
 
 onMounted(loadAccounts);
+watch(() => props.movementRevision, loadAccounts);
 watch(accounts, (value) => emit("accounts-changed", value));
 
 async function loadAccounts() {
@@ -183,8 +184,8 @@ async function renameAccount() {
 
       <div v-for="account in accounts" :key="account.id" class="account-summary">
         <dl>
-          <dt>{{ text.initialBalance }}</dt>
-          <dd>{{ formatCurrency(account.initialBalance, account.currencyCode) }}</dd>
+          <dt>{{ text.currentBalance }}</dt>
+          <dd>{{ formatCurrency(account.currentBalance, account.currencyCode) }}</dd>
         </dl>
         <h3>{{ account.name }}</h3>
         <div class="account-actions">
