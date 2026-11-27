@@ -14,7 +14,7 @@ export default defineConfig({
     proxy: {
       "/auth": apiProxy,
       "/account": apiProxy,
-      "/movement": apiProxy,
+      "^/movement(?:[/?]|$)": apiProxy,
       "/category": apiProxy,
     },
   },

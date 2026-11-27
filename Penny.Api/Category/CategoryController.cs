@@ -54,7 +54,7 @@ public sealed class CategoryController : ControllerBase
 
     [HttpPost]
     public async Task<IActionResult> CreateCategory(
-        CreateCategoryRequestDTO request,
+        CategoryNameRequestDTO request,
         CancellationToken cancellationToken)
     {
         var userId = _userManager.GetUserId(User);
@@ -75,11 +75,7 @@ public sealed class CategoryController : ControllerBase
             return Unauthorized();
         }
 
-        var nameExists = await _db.Categories.AnyAsync(
-            category => category.UserId == userId &&
-                EF.Functions.Collate(category.Name.Trim(), NameCollation) == name,
-            cancellationToken);
-        if (nameExists)
+        if (await CategoryNameExistsAsync(userId, name, null, cancellationToken))
         {
             return Conflict(new { error = "A category with that name already exists." });
         }
@@ -96,7 +92,7 @@ public sealed class CategoryController : ControllerBase
     [HttpPost("{categoryId:int}/subcategory")]
     public async Task<IActionResult> CreateSubcategory(
         int categoryId,
-        CreateCategoryRequestDTO request,
+        CategoryNameRequestDTO request,
         CancellationToken cancellationToken)
     {
         var userId = _userManager.GetUserId(User);
@@ -125,11 +121,7 @@ public sealed class CategoryController : ControllerBase
             return NotFound(new { error = "Category not found." });
         }
 
-        var nameExists = await _db.Subcategories.AnyAsync(
-            subcategory => subcategory.CategoryId == categoryId &&
-                EF.Functions.Collate(subcategory.Name.Trim(), NameCollation) == name,
-            cancellationToken);
-        if (nameExists)
+        if (await SubcategoryNameExistsAsync(categoryId, name, null, cancellationToken))
         {
             return Conflict(new { error = "A subcategory with that name already exists in this category." });
         }
@@ -141,6 +133,84 @@ public sealed class CategoryController : ControllerBase
 
         return StatusCode(StatusCodes.Status201Created,
             new SubcategoryResponseDTO(subcategory.Id, subcategory.Name));
+    }
+
+    [HttpPatch("{categoryId:int}")]
+    public async Task<IActionResult> RenameCategory(
+        int categoryId, CategoryNameRequestDTO request, CancellationToken cancellationToken)
+    {
+        var userId = _userManager.GetUserId(User);
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        var name = request.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return BadRequest(new { error = "Enter a category name." });
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await LockOwnerAsync(userId, cancellationToken))
+        {
+            return Unauthorized();
+        }
+
+        var target = _db.Categories.Where(item => item.Id == categoryId && item.UserId == userId);
+        if (!await target.AnyAsync(cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (await CategoryNameExistsAsync(userId, name, categoryId, cancellationToken))
+        {
+            return Conflict(new { error = "A category with that name already exists." });
+        }
+
+        var updated = await target.ExecuteUpdateAsync(
+            fields => fields.SetProperty(item => item.Name, name), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return updated == 0 ? NotFound() : NoContent();
+    }
+
+    [HttpPatch("{categoryId:int}/subcategory/{subcategoryId:int}")]
+    public async Task<IActionResult> RenameSubcategory(
+        int categoryId, int subcategoryId, CategoryNameRequestDTO request, CancellationToken cancellationToken)
+    {
+        var userId = _userManager.GetUserId(User);
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        var name = request.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return BadRequest(new { error = "Enter a subcategory name." });
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await LockOwnerAsync(userId, cancellationToken))
+        {
+            return Unauthorized();
+        }
+
+        var target = OwnedSubcategory(userId, categoryId, subcategoryId);
+        if (!await target.AnyAsync(cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (await SubcategoryNameExistsAsync(categoryId, name, subcategoryId, cancellationToken))
+        {
+            return Conflict(new { error = "A subcategory with that name already exists in this category." });
+        }
+
+        var updated = await target.ExecuteUpdateAsync(
+            fields => fields.SetProperty(item => item.Name, name), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return updated == 0 ? NotFound() : NoContent();
     }
 
     [HttpDelete("{categoryId:int}")]
@@ -186,10 +256,8 @@ public sealed class CategoryController : ControllerBase
             return Unauthorized();
         }
 
-        var subcategory = await _db.Subcategories.SingleOrDefaultAsync(
-            item => item.Id == subcategoryId && item.CategoryId == categoryId &&
-                _db.Categories.Any(category => category.Id == item.CategoryId && category.UserId == userId),
-            cancellationToken);
+        var subcategory = await OwnedSubcategory(userId, categoryId, subcategoryId)
+            .SingleOrDefaultAsync(cancellationToken);
         if (subcategory is null)
         {
             return NotFound();
@@ -222,6 +290,24 @@ public sealed class CategoryController : ControllerBase
             // A new reference can be inserted between validation and deletion.
             return Conflict(new { code = "item_has_dependencies" });
         }
+    }
+
+    private IQueryable<Domain.Category.Subcategory> OwnedSubcategory(string userId, int categoryId, int subcategoryId)
+    {
+        return _db.Subcategories.Where(item => item.Id == subcategoryId && item.CategoryId == categoryId &&
+            _db.Categories.Any(category => category.Id == item.CategoryId && category.UserId == userId));
+    }
+
+    private Task<bool> CategoryNameExistsAsync(string userId, string name, int? excludedId, CancellationToken cancellationToken)
+    {
+        return _db.Categories.AnyAsync(item => item.UserId == userId && item.Id != excludedId &&
+            EF.Functions.Collate(item.Name.Trim(), NameCollation) == name, cancellationToken);
+    }
+
+    private Task<bool> SubcategoryNameExistsAsync(int categoryId, string name, int? excludedId, CancellationToken cancellationToken)
+    {
+        return _db.Subcategories.AnyAsync(item => item.CategoryId == categoryId && item.Id != excludedId &&
+            EF.Functions.Collate(item.Name.Trim(), NameCollation) == name, cancellationToken);
     }
 
     private Task<bool> LockOwnerAsync(string userId, CancellationToken cancellationToken)

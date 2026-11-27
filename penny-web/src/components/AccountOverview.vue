@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { es } from "../locales/es";
 import { formatCurrency, type Account, type CurrencyCode } from "../account";
 
 defineProps<{ showOverview: boolean }>();
-const emit = defineEmits<{ "session-expired": [] }>();
+const emit = defineEmits<{
+  "session-expired": [];
+  "accounts-changed": [Account[] | null];
+  "new-movement": [accountId: number];
+}>();
 const text = es.account;
 const accounts = ref<Account[] | null>(null);
 const loading = ref(true);
@@ -17,6 +21,7 @@ const currencyCode = ref<CurrencyCode>(1);
 const initialBalance = ref("");
 
 onMounted(loadAccounts);
+watch(accounts, (value) => emit("accounts-changed", value));
 
 async function loadAccounts() {
   loading.value = true;
@@ -126,6 +131,14 @@ async function createAccount() {
           <dd>{{ formatCurrency(account.initialBalance, account.currencyCode) }}</dd>
         </dl>
         <h3>{{ account.name }}</h3>
+        <button
+          class="account-new-movement"
+          type="button"
+          :aria-label="es.movement.newForAccount(account.name)"
+          @click="emit('new-movement', account.id)"
+        >
+          <span aria-hidden="true">+</span> {{ es.home.newMovement }}
+        </button>
       </div>
     </template>
   </section>

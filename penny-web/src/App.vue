@@ -1,8 +1,10 @@
 ﻿<script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import AccountOverview from "./components/AccountOverview.vue";
 import CategoryManager from "./components/CategoryManager.vue";
 import MovementHistory from "./components/MovementHistory.vue";
+import NewMovementDialog from "./components/NewMovementDialog.vue";
+import type { Account } from "./account";
 import { es } from "./locales/es";
 
 type CurrentUser = {
@@ -17,10 +19,24 @@ const showPassword = ref(false);
 const submitting = ref(false);
 const error = ref("");
 const currentUser = ref<CurrentUser | null>(null);
+const accounts = ref<Account[] | null>(null);
+const movementAccountId = ref<number>();
+const movementDialog = ref<InstanceType<typeof NewMovementDialog>>();
+const movementRevision = ref(0);
+const movementStatus = ref("");
 const checkingSession = ref(true);
 const signingOut = ref(false);
 const signOutError = ref("");
-const activePage = ref<"home" | "movements" | "categories" | "profile">("home");
+const pagePaths = {
+  home: "/",
+  movements: "/movements",
+  categories: "/categories",
+  profile: "/profile",
+} as const;
+type Page = keyof typeof pagePaths;
+const pages = Object.keys(pagePaths) as Page[];
+const activePage = ref(readPage());
+const pageHeading = ref<HTMLHeadingElement>();
 const pageTitles = {
   home: es.home.title,
   movements: es.home.movements,
@@ -34,13 +50,56 @@ const upcomingSections = [
 
 function clearSession() {
   currentUser.value = null;
-  activePage.value = "home";
+  accounts.value = null;
+  movementAccountId.value = undefined;
+  movementStatus.value = "";
 }
 
+function readPage(): Page {
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  return pages.find((page) => pagePaths[page] === path) ?? "home";
+}
+
+function syncPage() {
+  activePage.value = readPage();
+}
+
+function navigate(event: MouseEvent, page: Page) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+  event.preventDefault();
+  return openPage(page);
+}
+
+async function openPage(page: Page) {
+  const path = pagePaths[page];
+  if (window.location.pathname === path) return;
+
+  window.history.pushState(null, "", path);
+  syncPage();
+  await nextTick();
+  pageHeading.value?.focus();
+}
+
+function movementSaved(accountId: number) {
+  movementAccountId.value = accountId;
+  movementRevision.value++;
+  movementStatus.value = es.movement.created;
+  return openPage("movements");
+}
+
+watch([currentUser, activePage], ([user, page]) => {
+  document.title = user && page !== "home" ? pageTitles[page] + " | Penny" : "Penny";
+  if (page !== "movements") movementStatus.value = "";
+});
+
 onMounted(async () => {
+  window.addEventListener("popstate", syncPage);
   await loadCurrentUser();
   checkingSession.value = false;
 });
+
+onUnmounted(() => window.removeEventListener("popstate", syncPage));
 
 async function signIn() {
   if (submitting.value) return;
@@ -108,6 +167,8 @@ async function signOut() {
     }
 
     clearSession();
+    window.history.replaceState(null, "", pagePaths.home);
+    syncPage();
     email.value = "";
   } catch {
     signOutError.value = es.home.signOutUnavailable;
@@ -125,30 +186,30 @@ async function signOut() {
         <span>Penny</span>
       </div>
       <nav class="home-navigation" :aria-label="es.home.navigation">
-        <button
-          type="button"
+        <a
+          :href="pagePaths.home"
           :aria-current="activePage === 'home' ? 'page' : undefined"
-          @click="activePage = 'home'"
+          @click="navigate($event, 'home')"
         >
           <span class="home-nav-icon" aria-hidden="true"></span>
           {{ es.home.title }}
-        </button>
-        <button
-          type="button"
+        </a>
+        <a
+          :href="pagePaths.movements"
           :aria-current="activePage === 'movements' ? 'page' : undefined"
-          @click="activePage = 'movements'"
+          @click="navigate($event, 'movements')"
         >
           <span class="home-nav-icon home-nav-icon--movement" aria-hidden="true"></span>
           {{ es.home.movements }}
-        </button>
-        <button
-          type="button"
+        </a>
+        <a
+          :href="pagePaths.categories"
           :aria-current="activePage === 'categories' ? 'page' : undefined"
-          @click="activePage = 'categories'"
+          @click="navigate($event, 'categories')"
         >
           <span class="home-nav-icon home-nav-icon--category" aria-hidden="true"></span>
           {{ es.home.categories }}
-        </button>
+        </a>
         <button
           v-for="section in upcomingSections"
           :key="section.icon"
@@ -165,37 +226,31 @@ async function signOut() {
         </button>
       </nav>
       <div class="home-profile">
-        <button
-          type="button"
+        <a
+          :href="pagePaths.profile"
           :aria-current="activePage === 'profile' ? 'page' : undefined"
-          @click="activePage = 'profile'"
+          @click="navigate($event, 'profile')"
         >
           <span class="home-avatar" aria-hidden="true">{{
             currentUser.email.slice(0, 1).toUpperCase()
           }}</span>
           <span>{{ es.home.profile }}</span>
-        </button>
+        </a>
       </div>
     </aside>
     <div class="home-main">
       <header class="home-header">
-        <h1>
+        <h1 ref="pageHeading" tabindex="-1">
           {{ pageTitles[activePage] }}
         </h1>
-        <button
-          class="home-new-movement"
-          type="button"
-          :title="es.home.comingSoon"
-          disabled
-        >
-          <span aria-hidden="true">+</span>
-          {{ es.home.newMovement }}
-        </button>
       </header>
       <main id="home-content" class="home-content" tabindex="-1">
+        <p class="movement-status" role="status">{{ movementStatus }}</p>
         <AccountOverview
           :key="currentUser.id"
           :show-overview="activePage === 'home'"
+          @accounts-changed="accounts = $event"
+          @new-movement="movementDialog?.open($event)"
           @session-expired="clearSession"
         >
           <template v-if="activePage === 'movements'" #default="{ accounts, loading, loadError, retry }">
@@ -204,10 +259,17 @@ async function signOut() {
               <p class="auth-error" role="alert">{{ loadError }}</p>
               <button class="auth-submit" type="button" @click="retry">{{ es.account.retry }}</button>
             </template>
-            <MovementHistory v-else-if="accounts?.length" :accounts="accounts" @session-expired="clearSession" />
+            <MovementHistory
+              v-else-if="accounts?.length"
+              :key="movementRevision"
+              v-model:account-id="movementAccountId"
+              :accounts="accounts"
+              @new-movement="movementDialog?.open($event)"
+              @session-expired="clearSession"
+            />
             <template v-else>
               <p>{{ es.movement.accountRequired }}</p>
-              <button class="auth-submit" type="button" @click="activePage = 'home'">{{ es.home.title }}</button>
+              <a class="home-back-link" :href="pagePaths.home" @click="navigate($event, 'home')">{{ es.home.title }}</a>
             </template>
           </template>
         </AccountOverview>
@@ -227,6 +289,14 @@ async function signOut() {
         </p>
       </main>
     </div>
+    <NewMovementDialog
+      v-if="accounts?.length"
+      ref="movementDialog"
+      :accounts="accounts"
+      @saved="movementSaved"
+      @open-categories="openPage('categories')"
+      @session-expired="clearSession"
+    />
   </div>
 
   <main v-else class="auth-page">

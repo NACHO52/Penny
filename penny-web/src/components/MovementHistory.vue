@@ -7,18 +7,22 @@ type Movement = {
   id: number;
   movementDate: string;
   description: string;
+  categoryId: number;
+  subcategoryId: number | null;
   type: keyof typeof es.movement.types;
   amount: number;
 };
+type Category = { id: number; name: string; subcategories: { id: number; name: string }[] };
 
 const props = defineProps<{ accounts: Account[] }>();
-const emit = defineEmits<{ "session-expired": [] }>();
+const emit = defineEmits<{ "session-expired": []; "new-movement": [accountId: number] }>();
 const text = es.movement;
-const accountId = ref<number>();
+const accountId = defineModel<number | undefined>("accountId", { required: true });
 const account = computed(() =>
   props.accounts.find((item) => item.id === accountId.value) ?? props.accounts[0],
 );
 const movements = ref<Movement[]>([]);
+const categories = ref(new Map<number, Category>());
 const loading = ref(true);
 const error = ref(false);
 const retry = ref(0);
@@ -34,16 +38,25 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
   movements.value = [];
 
   try {
-    const response = await fetch(`/movement?accountId=${selectedAccount.id}`, {
+    const options: RequestInit = {
       cache: "no-store",
       signal: controller.signal,
-    });
+    };
+    const [response, categoryResponse] = await Promise.all([
+      fetch(`/movement?accountId=${selectedAccount.id}`, options),
+      fetch("/category", options),
+    ]);
     if (controller.signal.aborted) return;
-    if (response.status === 401) {
+    if (response.status === 401 || categoryResponse.status === 401) {
       emit("session-expired");
-    } else if (response.ok) {
-      const result: Movement[] = await response.json();
-      if (!controller.signal.aborted) movements.value = result;
+    } else if (response.ok && categoryResponse.ok) {
+      const [result, categoryList]: [Movement[], Category[]] = await Promise.all([
+        response.json(),
+        categoryResponse.json(),
+      ]);
+      if (controller.signal.aborted) return;
+      movements.value = result;
+      categories.value = new Map(categoryList.map((category) => [category.id, category]));
     } else {
       error.value = true;
     }
@@ -57,11 +70,21 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
 
 <template>
   <div v-if="account">
-    <div v-if="accounts.length > 1" class="movement-account">
-      <label for="movement-account">{{ text.account }}</label>
-      <select id="movement-account" :value="account.id" @change="accountId = Number(($event.target as HTMLSelectElement).value)">
-        <option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.name }}</option>
-      </select>
+    <div class="movement-toolbar">
+      <div class="movement-account">
+        <label for="movement-account">{{ text.account }}</label>
+        <select id="movement-account" :value="account.id" @change="accountId = Number(($event.target as HTMLSelectElement).value)">
+          <option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.name }}</option>
+        </select>
+      </div>
+      <button
+        class="home-new-movement"
+        type="button"
+        :aria-label="text.newForAccount(account.name)"
+        @click="emit('new-movement', account.id)"
+      >
+        <span aria-hidden="true">+</span> {{ text.newTitle }}
+      </button>
     </div>
 
     <p v-if="loading" role="status">{{ text.loading }}</p>
@@ -75,17 +98,19 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
         <caption id="movement-caption">{{ text.history }}</caption>
         <thead>
           <tr>
+            <th scope="col">{{ text.category }}</th>
+            <th scope="col">{{ text.subcategory }}</th>
             <th scope="col">{{ text.date }}</th>
             <th scope="col">{{ text.description }}</th>
-            <th scope="col">{{ text.type }}</th>
             <th scope="col">{{ text.amount }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="movement in movements" :key="movement.id">
+            <td>{{ categories.get(movement.categoryId)?.name ?? "—" }}</td>
+            <td>{{ categories.get(movement.categoryId)?.subcategories.find((item) => item.id === movement.subcategoryId)?.name ?? "—" }}</td>
             <td><time :datetime="movement.movementDate">{{ dateFormat.format(new Date(movement.movementDate)) }}</time></td>
             <th scope="row">{{ movement.description }}</th>
-            <td>{{ text.types[movement.type] }}</td>
             <td :class="movement.type === 1 ? 'movement-income' : 'movement-expense'">
               {{ movement.type === 1 ? "+" : "−" }} {{ formatCurrency(movement.amount, account.currencyCode) }}
             </td>

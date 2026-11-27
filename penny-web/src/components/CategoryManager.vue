@@ -4,7 +4,7 @@ import { es } from "../locales/es";
 
 type Subcategory = { id: number; name: string };
 type Category = { id: number; name: string; subcategories: Subcategory[] };
-type DeletionTarget = { category: Category; subcategory?: Subcategory };
+type CategoryTarget = { category: Category; subcategory?: Subcategory };
 
 const emit = defineEmits<{ "session-expired": [] }>();
 const text = es.category;
@@ -23,9 +23,13 @@ const error = ref("");
 const duplicateError = ref("");
 const deleteError = ref("");
 const deleting = ref(false);
-const deletionTarget = ref<DeletionTarget>();
+const deletionTarget = ref<CategoryTarget>();
 const deleteDialog = ref<HTMLDialogElement>();
 const deleteErrorButton = ref<HTMLButtonElement>();
+const renameTarget = ref<CategoryTarget>();
+const renameDialog = ref<HTMLDialogElement>();
+const renameName = ref("");
+const renameError = ref("");
 const listHeading = ref<HTMLHeadingElement>();
 const status = ref("");
 const byName = new Intl.Collator("es-AR");
@@ -111,6 +115,70 @@ function selectCategory(id: number) {
   duplicateError.value = "";
 }
 
+function itemPath({ category, subcategory }: CategoryTarget) {
+  const categoryPath = "/category/" + category.id;
+  return subcategory ? categoryPath + "/subcategory/" + subcategory.id : categoryPath;
+}
+
+async function openRename(category: Category, subcategory?: Subcategory) {
+  if (saving.value || deleting.value || renameTarget.value) return;
+
+  renameTarget.value = { category, subcategory };
+  renameName.value = (subcategory ?? category).name;
+  status.value = "";
+  await nextTick();
+  renameDialog.value?.showModal();
+}
+
+async function saveName() {
+  const target = renameTarget.value;
+  const name = renameName.value.trim();
+  if (!target || !name || saving.value) return;
+
+  saving.value = true;
+  renameError.value = "";
+  const { category, subcategory } = target;
+  try {
+    const response = await fetch(itemPath(target), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (response.status === 401) {
+      emit("session-expired");
+      return;
+    }
+    if (response.status === 409) {
+      renameError.value = subcategory ? text.duplicateSubcategory : text.duplicateCategory;
+      return;
+    }
+    if (response.status === 404) {
+      renameError.value = text.alreadyRemoved;
+      return;
+    }
+    if (response.status !== 204) throw new Error();
+
+    if (subcategory) {
+      subcategory.name = name;
+      category.subcategories.sort((first, second) => byName.compare(first.name, second.name));
+    } else {
+      category.name = name;
+      categories.value.sort((first, second) => byName.compare(first.name, second.name));
+    }
+    status.value = subcategory ? text.subcategoryRenamed : text.categoryRenamed;
+    renameDialog.value?.close();
+  } catch {
+    renameError.value = text.renameError;
+  } finally {
+    saving.value = false;
+  }
+}
+
+function resetRename() {
+  renameTarget.value = undefined;
+  renameError.value = "";
+}
+
 async function confirmDeletion(category: Category, subcategory?: Subcategory) {
   if (saving.value || deleting.value || deletionTarget.value) return;
 
@@ -126,12 +194,10 @@ async function finishDeletion() {
   if (!target || deleting.value || deleteError.value) return;
 
   const { category, subcategory } = target;
-  const categoryPath = "/category/" + category.id;
-  const path = subcategory ? categoryPath + "/subcategory/" + subcategory.id : categoryPath;
   deleting.value = true;
 
   try {
-    const response = await fetch(path, { method: "DELETE" });
+    const response = await fetch(itemPath(target), { method: "DELETE" });
     if (response.status === 401) {
       emit("session-expired");
       return;
@@ -217,17 +283,27 @@ async function toggleForm(form: "category" | "subcategory") {
               <span><strong>{{ category.name }}</strong><small>{{ text.subcategoryCount(category.subcategories.length) }}</small></span>
               <span class="category-disclosure" aria-hidden="true">{{ parentId === category.id ? "−" : "+" }}</span>
             </button>
-              <button class="category-delete" type="button" :aria-label="text.deleteNamed(category.name)" :disabled="saving || deleting" @click="confirmDeletion(category)">
-                {{ text.delete }}
-              </button>
+              <div class="category-item-actions">
+                <button class="category-edit" type="button" :aria-label="text.editNamed(category.name)" :disabled="saving || deleting" @click="openRename(category)">
+                  {{ text.edit }}
+                </button>
+                <button class="category-delete" type="button" :aria-label="text.deleteNamed(category.name)" :disabled="saving || deleting" @click="confirmDeletion(category)">
+                  {{ text.delete }}
+                </button>
+              </div>
             </div>
             <div v-show="parentId === category.id" :id="'category-' + category.id" class="category-children">
               <ul v-if="category.subcategories.length">
                 <li v-for="subcategory in category.subcategories" :key="subcategory.id">
                   <span>{{ subcategory.name }}</span>
-                  <button class="category-delete" type="button" :aria-label="text.deleteNamed(subcategory.name)" :disabled="saving || deleting" @click="confirmDeletion(category, subcategory)">
-                    {{ text.delete }}
-                  </button>
+                  <div class="category-item-actions">
+                    <button class="category-edit" type="button" :aria-label="text.editNamed(subcategory.name)" :disabled="saving || deleting" @click="openRename(category, subcategory)">
+                      {{ text.edit }}
+                    </button>
+                    <button class="category-delete" type="button" :aria-label="text.deleteNamed(subcategory.name)" :disabled="saving || deleting" @click="confirmDeletion(category, subcategory)">
+                      {{ text.delete }}
+                    </button>
+                  </div>
                 </li>
               </ul>
               <button
@@ -286,7 +362,7 @@ async function toggleForm(form: "category" | "subcategory") {
     </template>
     <dialog
       ref="deleteDialog"
-      class="category-delete-dialog"
+      class="category-dialog"
       aria-labelledby="delete-category-title"
       aria-describedby="delete-category-description"
       @cancel="deleting && $event.preventDefault()"
@@ -308,6 +384,28 @@ async function toggleForm(form: "category" | "subcategory") {
         <button class="category-delete-confirm" type="submit" :disabled="deleting">
           {{ deleting ? text.deleting : text.delete }}
         </button>
+      </form>
+    </dialog>
+    <dialog
+      ref="renameDialog"
+      class="category-dialog"
+      aria-labelledby="rename-category-title"
+      @cancel="saving && $event.preventDefault()"
+      @close="resetRename"
+    >
+      <h1 id="rename-category-title">
+        {{ renameTarget?.subcategory ? text.renameSubcategory : text.renameCategory }}
+      </h1>
+      <form class="auth-form" @submit.prevent="saveName">
+        <div class="auth-field">
+          <label for="rename-name">{{ renameTarget?.subcategory ? text.subcategoryName : text.categoryName }}</label>
+          <input id="rename-name" v-model="renameName" name="name" pattern=".*\S.*" required autofocus :readonly="saving" />
+        </div>
+        <p v-if="renameError" class="auth-error" role="alert">{{ renameError }}</p>
+        <div class="category-dialog-actions">
+          <button type="button" :disabled="saving" @click="renameDialog?.close()">{{ text.cancel }}</button>
+          <button class="auth-submit" type="submit" :disabled="saving">{{ saving ? text.saving : text.saveName }}</button>
+        </div>
       </form>
     </dialog>
   </div>
