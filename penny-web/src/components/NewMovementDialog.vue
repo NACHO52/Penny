@@ -3,12 +3,13 @@ import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import type { Account } from "../account";
 import { es } from "../locales/es";
 import { useFieldValidation } from "../fieldValidation";
+import type { Movement } from "../movement";
 
 type Category = { id: number; name: string; subcategories: { id: number; name: string }[] };
 type MovementType = keyof typeof es.movement.types;
 
 const props = defineProps<{ accounts: Account[] }>();
-const emit = defineEmits<{ saved: [accountId: number]; "open-categories": []; "session-expired": [] }>();
+const emit = defineEmits<{ saved: [accountId: number, editing: boolean]; "open-categories": []; "session-expired": [] }>();
 const text = es.movement;
 const validation = useFieldValidation({
   "movement-amount": text.invalidAmount,
@@ -18,6 +19,8 @@ const dialog = ref<HTMLDialogElement>();
 const amountInput = ref<HTMLInputElement>();
 const cancelButton = ref<HTMLButtonElement>();
 const accountId = ref<number>();
+const movementId = ref<number>();
+const editing = computed(() => movementId.value !== undefined);
 const type = ref<MovementType>(2);
 const movementTypes = [2, 1] as const;
 const isExpense = computed(() => type.value === 2);
@@ -121,25 +124,28 @@ function formatAmount(event: InputEvent) {
   input.setSelectionRange(position, position);
 }
 
-function open(selectedAccountId: number) {
+async function open(selectedAccountId: number, movement?: Movement) {
   if (dialog.value?.open || !props.accounts.some((account) => account.id === selectedAccountId)) return;
 
   accountId.value = selectedAccountId;
-  type.value = 2;
-  amount.value = "";
-  description.value = "";
+  movementId.value = movement?.id;
+  type.value = movement?.type ?? 2;
+  const [integer, cents] = movement?.exactAmount.split(".") ?? [];
+  amount.value = integer === undefined ? "" : integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + cents;
+  description.value = movement?.description ?? "";
   const today = new Date();
   const month = String(today.getMonth() + 1).padStart(2, "0");
   const day = String(today.getDate()).padStart(2, "0");
-  movementDate.value = today.getFullYear() + "-" + month + "-" + day;
+  movementDate.value = movement?.movementDate ?? today.getFullYear() + "-" + month + "-" + day;
   categories.value = [];
-  categoryId.value = "";
-  subcategoryId.value = "";
+  categoryId.value = movement?.categoryId ?? "";
+  subcategoryId.value = movement?.type === 2 ? movement.subcategoryId ?? "other" : "";
   uncertain.value = false;
   saveError.value = "";
   validation.reset();
-  dialog.value?.showModal();
   void loadCategories();
+  await nextTick();
+  dialog.value?.showModal();
 }
 
 async function loadCategories() {
@@ -204,8 +210,8 @@ async function saveMovement(event: SubmitEvent) {
   saving.value = true;
   saveError.value = "";
   try {
-    const response = await fetch("/movement", {
-      method: "POST",
+    const response = await fetch(editing.value ? "/movement/" + movementId.value : "/movement", {
+      method: editing.value ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accountId: account.id,
@@ -221,6 +227,10 @@ async function saveMovement(event: SubmitEvent) {
       emit("session-expired");
       return;
     }
+    if (editing.value && response.status === 404) {
+      saveError.value = text.movementUnavailable;
+      return;
+    }
     if (response.status === 400 || response.status === 404) {
       const failure: { code?: string } | null = await response.json().catch(() => null);
       if (isExpense.value) await loadCategories();
@@ -233,13 +243,13 @@ async function saveMovement(event: SubmitEvent) {
       }
       return;
     }
-    if (response.status !== 201) throw new Error();
+    if (response.status !== (editing.value ? 200 : 201)) throw new Error();
 
     dialog.value?.close();
-    emit("saved", account.id);
+    emit("saved", account.id, editing.value);
   } catch {
-    uncertain.value = true;
-    saveError.value = text.uncertain;
+    uncertain.value = !editing.value;
+    saveError.value = editing.value ? text.updateError : text.uncertain;
   } finally {
     saving.value = false;
     if (uncertain.value) {
@@ -269,7 +279,7 @@ function changeCategory() {
     @close="cancelCategoryRequest"
   >
     <header class="new-movement-heading">
-      <h1 id="new-movement-title">{{ text.newTitle }}</h1>
+      <h1 id="new-movement-title">{{ editing ? text.editTitle : text.newTitle }}</h1>
       <button type="button" :aria-label="text.close" :disabled="saving" @click="dialog?.close()">×</button>
     </header>
     <form
@@ -365,7 +375,7 @@ function changeCategory() {
       <footer class="app-dialog-actions">
         <button ref="cancelButton" type="button" :disabled="saving" @click="dialog?.close()">{{ uncertain ? text.close : text.cancel }}</button>
         <button class="auth-submit" type="submit" :disabled="saving || uncertain || (isExpense && (loading || loadError || !categories.length))">
-          {{ saving ? text.saving : text.save }}
+          {{ editing ? (saving ? text.updating : text.update) : (saving ? text.saving : text.save) }}
         </button>
       </footer>
     </form>

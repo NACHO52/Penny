@@ -6,7 +6,7 @@ using Penny.Domain.Movement;
 
 internal static class MovementMapper
 {
-    public static MovementEntity ToEntity(CreateMovementRequestDTO request)
+    public static MovementEntity ToEntity(MovementRequestDTO request)
     {
         return new MovementEntity
         {

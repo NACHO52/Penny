@@ -2,22 +2,15 @@
 import { computed, ref, watch } from "vue";
 import { formatCurrency, type Account } from "../account";
 import { es } from "../locales/es";
+import type { Movement } from "../movement";
 
-type Movement = {
-  id: number;
-  movementDate: string;
-  description: string;
-  categoryId: number | null;
-  subcategoryId: number | null;
-  type: keyof typeof es.movement.types;
-  amount: number;
-};
 type Category = { id: number; name: string; subcategories: { id: number; name: string }[] };
 
 const props = defineProps<{ accounts: Account[]; accountId?: number }>();
 const emit = defineEmits<{
   "session-expired": [];
   "new-movement": [accountId: number];
+  "edit-movement": [accountId: number, movement: Movement];
   "account-selected": [accountId: number];
 }>();
 const text = es.movement;
@@ -117,7 +110,8 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
             <th scope="col">{{ text.subcategory }}</th>
             <th scope="col">{{ text.date }}</th>
             <th scope="col">{{ text.description }}</th>
-            <th scope="col">{{ text.amount }}</th>
+            <th scope="col" class="movement-amount">{{ text.amount }}</th>
+            <th scope="col">{{ text.actions }}</th>
           </tr>
         </thead>
         <tbody>
@@ -126,8 +120,16 @@ watch([account, retry], async ([selectedAccount], _, onCleanup) => {
             <td>{{ subcategoryName(movement) }}</td>
             <td><time :datetime="movement.movementDate">{{ dateFormat.format(new Date(movement.movementDate)) }}</time></td>
             <th scope="row">{{ movement.description }}</th>
-            <td :class="movement.type === 1 ? 'movement-income' : 'movement-expense'">
+            <td class="movement-amount" :class="movement.type === 1 ? 'movement-income' : 'movement-expense'">
               {{ movement.type === 1 ? "+" : "−" }} {{ formatCurrency(movement.amount, account.currencyCode) }}
+            </td>
+            <td>
+              <button
+                class="movement-edit"
+                type="button"
+                :aria-label="text.editMovement(movement.description)"
+                @click="emit('edit-movement', account.id, movement)"
+              >{{ text.edit }}</button>
             </td>
           </tr>
         </tbody>

@@ -25,7 +25,7 @@ public sealed class MovementController : ControllerBase
 
     [HttpPost]
     public async Task<IActionResult> CreateMovement(
-        CreateMovementRequestDTO request,
+        MovementRequestDTO request,
         CancellationToken cancellationToken)
     {
         var userId = _userManager.GetUserId(User);
@@ -34,6 +34,58 @@ public sealed class MovementController : ControllerBase
             return Unauthorized();
         }
 
+        var validationError = await ValidateMovementAsync(request, userId, cancellationToken);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        var movement = MovementMapper.ToEntity(request);
+        _db.Movements.Add(movement);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, MovementMapper.ToResponse(movement));
+    }
+
+    [HttpPut("{movementId:int}")]
+    public async Task<IActionResult> UpdateMovement(
+        int movementId, MovementRequestDTO request, CancellationToken cancellationToken)
+    {
+        var userId = _userManager.GetUserId(User);
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        var movement = await _db.Movements.SingleOrDefaultAsync(
+            movement => movement.Id == movementId && movement.AccountId == request.AccountId &&
+                _db.Accounts.Any(account => account.Id == movement.AccountId && account.UserId == userId),
+            cancellationToken);
+        if (movement is null)
+        {
+            return NotFound(new { error = "Movement not found." });
+        }
+
+        var validationError = await ValidateMovementAsync(request, userId, cancellationToken);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        var updatedMovement = MovementMapper.ToEntity(request);
+        updatedMovement.Id = movement.Id;
+        updatedMovement.CreationDate = movement.CreationDate;
+        var movementEntry = _db.Entry(movement);
+        movementEntry.CurrentValues.SetValues(updatedMovement);
+        movementEntry.State = EntityState.Modified;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(MovementMapper.ToResponse(movement));
+    }
+
+    private async Task<IActionResult?> ValidateMovementAsync(
+        MovementRequestDTO request, string userId, CancellationToken cancellationToken)
+    {
         if (!Enum.IsDefined(request.Type) ||
             string.IsNullOrWhiteSpace(request.Description) ||
             request.Amount <= 0 ||
@@ -73,11 +125,7 @@ public sealed class MovementController : ControllerBase
             }
         }
 
-        var movement = MovementMapper.ToEntity(request);
-        _db.Movements.Add(movement);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return StatusCode(StatusCodes.Status201Created, MovementMapper.ToResponse(movement));
+        return null;
     }
 
     [HttpGet]

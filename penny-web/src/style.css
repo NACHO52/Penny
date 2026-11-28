@@ -612,16 +612,19 @@ button:disabled {
 }
 
 .category-edit,
+.movement-edit,
 .category-delete {
   padding-inline: var(--space-sm);
   background: transparent;
 }
 
-.category-edit {
+.category-edit,
+.movement-edit {
   color: var(--color-text-secondary);
 }
 
-.category-edit:enabled:hover {
+.category-edit:enabled:hover,
+.movement-edit:enabled:hover {
   background: var(--color-canvas);
 }
 
@@ -915,7 +918,7 @@ button:disabled {
   white-space: nowrap;
 }
 
-.movement-table tr > :last-child {
+.movement-table .movement-amount {
   text-align: end;
   font-variant-numeric: tabular-nums;
 }

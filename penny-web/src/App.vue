@@ -120,10 +120,11 @@ function showSuccess(message: string) {
   successToast.value?.show(message);
 }
 
-async function movementSaved(accountId: number) {
+async function movementSaved(accountId: number, editing: boolean) {
   movementRevision.value++;
   await openPage("movements", accountId);
-  showSuccess(es.movement.created);
+  if (editing) pageHeading.value?.focus();
+  showSuccess(editing ? es.movement.updated : es.movement.created);
 }
 
 watch([accounts, activePage, movementAccountId], ([availableAccounts, page, accountId]) => {
@@ -313,6 +314,7 @@ async function signOut() {
               :accounts="accounts"
               @account-selected="selectMovementAccount"
               @new-movement="movementDialog?.open($event)"
+              @edit-movement="(accountId, movement) => movementDialog?.open(accountId, movement)"
               @session-expired="clearSession"
             />
             <template v-else>

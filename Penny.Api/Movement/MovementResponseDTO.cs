@@ -10,4 +10,7 @@ public sealed record MovementResponseDTO(
     int? CategoryId,
     int? SubcategoryId,
     decimal Amount,
-    string Description);
+    string Description)
+{
+    public string ExactAmount => Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+}

@@ -2,7 +2,7 @@
 
 namespace Penny.Api.Movement;
 
-public sealed record CreateMovementRequestDTO
+public sealed record MovementRequestDTO
 {
     public required int AccountId { get; init; }
     public required MovementType Type { get; init; }
