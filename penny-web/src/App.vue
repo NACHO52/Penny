@@ -4,6 +4,7 @@ import AccountOverview from "./components/AccountOverview.vue";
 import CategoryManager from "./components/CategoryManager.vue";
 import MovementHistory from "./components/MovementHistory.vue";
 import NewMovementDialog from "./components/NewMovementDialog.vue";
+import SuccessToast from "./components/SuccessToast.vue";
 import type { Account } from "./account";
 import { es } from "./locales/es";
 
@@ -23,7 +24,7 @@ const accounts = ref<Account[] | null>(null);
 const movementAccountId = ref(readMovementAccountId());
 const movementDialog = ref<InstanceType<typeof NewMovementDialog>>();
 const movementRevision = ref(0);
-const movementStatus = ref("");
+const successToast = ref<InstanceType<typeof SuccessToast>>();
 const checkingSession = ref(true);
 const signingOut = ref(false);
 const signOutError = ref("");
@@ -52,7 +53,6 @@ function clearSession() {
   currentUser.value = null;
   accounts.value = null;
   movementAccountId.value = undefined;
-  movementStatus.value = "";
 }
 
 function readPage(): Page {
@@ -116,10 +116,14 @@ async function openPage(page: Page, accountId = movementAccountId.value) {
   pageHeading.value?.focus();
 }
 
-function movementSaved(accountId: number) {
+function showSuccess(message: string) {
+  successToast.value?.show(message);
+}
+
+async function movementSaved(accountId: number) {
   movementRevision.value++;
-  movementStatus.value = es.movement.created;
-  return openPage("movements", accountId);
+  await openPage("movements", accountId);
+  showSuccess(es.movement.created);
 }
 
 watch([accounts, activePage, movementAccountId], ([availableAccounts, page, accountId]) => {
@@ -133,7 +137,6 @@ watch([accounts, activePage, movementAccountId], ([availableAccounts, page, acco
 
 watch([currentUser, activePage], ([user, page]) => {
   document.title = user && page !== "home" ? pageTitles[page] + " | Penny" : "Penny";
-  if (page !== "movements") movementStatus.value = "";
 });
 
 onMounted(async () => {
@@ -289,13 +292,13 @@ async function signOut() {
         </h1>
       </header>
       <main id="home-content" class="home-content" tabindex="-1">
-        <p class="movement-status" role="status">{{ movementStatus }}</p>
         <AccountOverview
           :key="currentUser.id"
           :show-overview="activePage === 'home'"
           :movement-revision="movementRevision"
           @accounts-changed="accounts = $event"
           @new-movement="movementDialog?.open($event)"
+          @success="showSuccess"
           @session-expired="clearSession"
         >
           <template v-if="activePage === 'movements'" #default="{ accounts, loading, loadError, retry }">
@@ -318,7 +321,11 @@ async function signOut() {
             </template>
           </template>
         </AccountOverview>
-        <CategoryManager v-if="activePage === 'categories'" @session-expired="clearSession" />
+        <CategoryManager
+          v-if="activePage === 'categories'"
+          @success="showSuccess"
+          @session-expired="clearSession"
+        />
         <p v-if="activePage === 'profile'" class="session-email">{{ currentUser.email }}</p>
         <button
           v-if="activePage === 'profile'"
@@ -334,6 +341,7 @@ async function signOut() {
         </p>
       </main>
     </div>
+    <SuccessToast ref="successToast" />
     <NewMovementDialog
       v-if="accounts?.length"
       ref="movementDialog"

@@ -750,16 +750,6 @@ button:disabled {
   background: var(--color-error);
 }
 
-.movement-status {
-  margin-block: 0 var(--space-md);
-  color: var(--color-income);
-  font-weight: 700;
-}
-
-.movement-status:empty {
-  margin: 0;
-}
-
 .new-movement-dialog {
   inline-size: min(34rem, calc(100% - 2rem));
 }

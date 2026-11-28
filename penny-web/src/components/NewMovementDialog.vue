@@ -181,7 +181,7 @@ async function saveMovement(event: SubmitEvent) {
   const form = event.currentTarget as HTMLFormElement;
   const valid = form.checkValidity();
   if (isExpense.value && !category) {
-    validation.errors["movement-category"] = text.categoryRequired;
+    validation.errors["movement-category"] = es.validation.required;
     await nextTick();
     categoryInput.value?.focus();
     return;

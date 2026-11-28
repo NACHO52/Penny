@@ -113,7 +113,6 @@ export const es = {
     category: "Categoría",
     subcategory: "Subcategoría",
     selectCategory: "Elegí una categoría",
-    categoryRequired: "Elegí una categoría para registrar el gasto.",
     selectSubcategory: "Elegí una subcategoría",
     subcategoryRequired: "Elegí una subcategoría o seleccioná Otra.",
     otherSubcategory: "Otra",

@@ -9,6 +9,7 @@ const emit = defineEmits<{
   "session-expired": [];
   "accounts-changed": [Account[] | null];
   "new-movement": [accountId: number];
+  success: [message: string];
 }>();
 const text = es.account;
 const accounts = ref<Account[] | null>(null);
@@ -16,7 +17,6 @@ const loading = ref(true);
 const saving = ref(false);
 const loadError = ref("");
 const saveError = ref("");
-const status = ref("");
 const name = ref("");
 const currencyCode = ref<CurrencyCode>(1);
 const initialBalance = ref("");
@@ -74,7 +74,7 @@ async function createAccount() {
       loadError.value = text.duplicateName;
     } else if (response.status === 201) {
       accounts.value = [await response.json()];
-      status.value = text.created;
+      emit("success", text.created);
     } else {
       loadError.value = text.createError;
     }
@@ -92,7 +92,6 @@ async function openRename(account: Account) {
   renameName.value = account.name;
   renameError.value = "";
   renameValidation.reset();
-  status.value = "";
   await nextTick();
   renameDialog.value?.showModal();
 }
@@ -127,8 +126,8 @@ async function renameAccount() {
     accounts.value = accounts.value?.map((account) =>
       account.id === accountId ? { ...account, name: newName } : account,
     ) ?? null;
-    status.value = text.renamed;
     renameDialog.value?.close();
+    emit("success", text.renamed);
   } catch {
     renameError.value = text.renameError;
   } finally {
@@ -144,7 +143,7 @@ async function renameAccount() {
     aria-labelledby="account-title"
   >
     <h2 id="account-title">{{ accounts?.length === 0 && !loadError && !loading ? text.createTitle : text.title }}</h2>
-    <p role="status">{{ loading ? text.loading : saving ? text.creating : status }}</p>
+    <p role="status">{{ loading ? text.loading : saving ? text.creating : "" }}</p>
 
     <div v-if="loadError">
       <p class="auth-error" role="alert">{{ loadError }}</p>

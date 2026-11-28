@@ -63,3 +63,9 @@ To try the flow, create a user with `POST /auth/register` in Swagger UI, then en
 ## Code and interface languages
 
 Use English for identifiers, source filenames, API routes, and code comments. The login screen currently uses Spanish, with user-facing strings in a [locale file](penny-web/src/locales/es.ts) to make it easier to add more languages.
+
+## Success notifications
+
+Use the shared [SuccessToast](penny-web/src/components/SuccessToast.vue) for confirmations after the API reports a successful change. Child components emit `success` with a localized message from `es.ts`. The app displays the toast in the bottom-right corner for four seconds and announces it without moving focus. Show it after closing any modal or completing any navigation triggered by the operation.
+
+Keep validation errors, failures, and progress messages in the form or section where they apply. Reflect saved changes in the relevant view so users can verify the result after the toast disappears.

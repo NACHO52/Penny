@@ -7,7 +7,10 @@ type Subcategory = { id: number; name: string };
 type Category = { id: number; name: string; subcategories: Subcategory[] };
 type CategoryTarget = { category: Category; subcategory?: Subcategory };
 
-const emit = defineEmits<{ "session-expired": [] }>();
+const emit = defineEmits<{
+  "session-expired": [];
+  success: [message: string];
+}>();
 const text = es.category;
 const categories = ref<Category[]>([]);
 const categoryName = ref("");
@@ -36,7 +39,7 @@ const renameName = ref("");
 const renameError = ref("");
 const renameValidation = useFieldValidation({ "rename-name": es.validation.name });
 const listHeading = ref<HTMLHeadingElement>();
-const status = ref("");
+const removalStatus = ref("");
 const byName = new Intl.Collator("es-AR");
 
 onMounted(loadCategories);
@@ -70,7 +73,7 @@ async function createCategory(parent?: Category) {
 
   saving.value = true;
   delete createValidation.errors[field];
-  status.value = "";
+  removalStatus.value = "";
   try {
     const path = parent ? "/category/" + parent.id + "/subcategory" : "/category";
     const response = await fetch(path, {
@@ -92,7 +95,7 @@ async function createCategory(parent?: Category) {
       const subcategory: Subcategory = await response.json();
       parent.subcategories.push(subcategory);
       parent.subcategories.sort((first, second) => byName.compare(first.name, second.name));
-      status.value = text.subcategoryCreated;
+      emit("success", text.subcategoryCreated);
     } else {
       const category: Category = await response.json();
       categories.value.push(category);
@@ -101,7 +104,7 @@ async function createCategory(parent?: Category) {
       subcategoryFormOpen.value = false;
       subcategoryName.value = "";
       delete createValidation.errors["subcategory-name"];
-      status.value = text.categoryCreated;
+      emit("success", text.categoryCreated);
     }
     input.value = "";
   } catch {
@@ -132,7 +135,7 @@ async function openRename(category: Category, subcategory?: Subcategory) {
 
   renameTarget.value = { category, subcategory };
   renameName.value = (subcategory ?? category).name;
-  status.value = "";
+  removalStatus.value = "";
   await nextTick();
   renameDialog.value?.showModal();
 }
@@ -172,8 +175,8 @@ async function saveName() {
       category.name = name;
       categories.value.sort((first, second) => byName.compare(first.name, second.name));
     }
-    status.value = subcategory ? text.subcategoryRenamed : text.categoryRenamed;
     renameDialog.value?.close();
+    emit("success", subcategory ? text.subcategoryRenamed : text.categoryRenamed);
   } catch {
     renameError.value = text.renameError;
   } finally {
@@ -191,7 +194,7 @@ async function confirmDeletion(category: Category, subcategory?: Subcategory) {
   if (saving.value || deleting.value || deletionTarget.value) return;
 
   deleteError.value = "";
-  status.value = "";
+  removalStatus.value = "";
   deletionTarget.value = { category, subcategory };
   await nextTick();
   deleteDialog.value?.showModal();
@@ -223,11 +226,14 @@ async function finishDeletion() {
       if (parentId.value === category.id) selectCategory(category.id);
       categories.value = categories.value.filter((item) => item.id !== category.id);
     }
-    status.value = response.status === 404 ? text.alreadyRemoved
-      : subcategory ? text.subcategoryDeleted : text.categoryDeleted;
     deleteDialog.value?.close();
     await nextTick();
     listHeading.value?.focus();
+    if (response.status === 404) {
+      removalStatus.value = text.alreadyRemoved;
+    } else {
+      emit("success", subcategory ? text.subcategoryDeleted : text.categoryDeleted);
+    }
   } catch {
     deleteError.value = text.deleteError;
   } finally {
@@ -257,7 +263,7 @@ async function toggleForm(form: "category" | "subcategory") {
 
 <template>
   <div class="category-manager">
-    <p class="category-status" role="status">{{ loading ? text.loading : deleting ? text.deleting : saving ? text.saving : status }}</p>
+    <p class="category-status" role="status">{{ loading ? text.loading : deleting ? text.deleting : saving ? text.saving : removalStatus }}</p>
     <div v-if="error">
       <p class="auth-error" role="alert">{{ error }}</p>
       <button class="auth-submit" type="button" @click="loadCategories">{{ text.retry }}</button>
