@@ -2,6 +2,7 @@
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import AccountOverview from "./components/AccountOverview.vue";
 import CategoryManager from "./components/CategoryManager.vue";
+import MonthlyExpenseReport from "./components/MonthlyExpenseReport.vue";
 import MovementHistory from "./components/MovementHistory.vue";
 import NewMovementDialog from "./components/NewMovementDialog.vue";
 import SuccessToast from "./components/SuccessToast.vue";
@@ -22,6 +23,8 @@ const error = ref("");
 const currentUser = ref<CurrentUser | null>(null);
 const accounts = ref<Account[] | null>(null);
 const movementAccountId = ref(readMovementAccountId());
+const reportAccountId = ref<number>();
+const reportYear = ref(new Date().getFullYear());
 const movementDialog = ref<InstanceType<typeof NewMovementDialog>>();
 const movementRevision = ref(0);
 const successToast = ref<InstanceType<typeof SuccessToast>>();
@@ -32,27 +35,28 @@ const pagePaths = {
   home: "/",
   movements: "/movements",
   categories: "/categories",
+  monthlyExpenses: "/reports/monthly-expenses",
   profile: "/profile",
 } as const;
 type Page = keyof typeof pagePaths;
 const pages = Object.keys(pagePaths) as Page[];
 const activePage = ref(readPage());
+const reportsOpen = ref(activePage.value === "monthlyExpenses");
 const pageHeading = ref<HTMLHeadingElement>();
 const pageTitles = {
   home: es.home.title,
   movements: es.home.movements,
   categories: es.home.categories,
+  monthlyExpenses: es.report.title,
   profile: es.home.profile,
 };
-const upcomingSections = [
-  { icon: "report", label: es.home.reports },
-  { icon: "card", label: es.home.card },
-];
 
 function clearSession() {
   currentUser.value = null;
   accounts.value = null;
   movementAccountId.value = undefined;
+  reportAccountId.value = undefined;
+  reportsOpen.value = false;
 }
 
 function readPage(): Page {
@@ -61,17 +65,25 @@ function readPage(): Page {
 }
 
 function readMovementAccountId() {
-  const raw = new URLSearchParams(window.location.search).get("accountId");
+  return readQueryInteger("accountId", 2_147_483_647);
+}
+
+function readQueryInteger(name: string, maximum: number) {
+  const raw = new URLSearchParams(window.location.search).get(name);
   if (!raw || !/^[1-9]\d*$/.test(raw)) return;
 
-  const id = Number(raw);
-  return Number.isSafeInteger(id) ? id : undefined;
+  const value = Number(raw);
+  return value <= maximum ? value : undefined;
 }
 
 function syncPage() {
   activePage.value = readPage();
   if (activePage.value === "movements") {
     movementAccountId.value = readMovementAccountId();
+  }
+  if (activePage.value === "monthlyExpenses") {
+    reportAccountId.value = readQueryInteger("accountId", 2_147_483_647);
+    reportYear.value = readQueryInteger("year", 9999) ?? new Date().getFullYear();
   }
 }
 
@@ -91,6 +103,26 @@ function currentPath() {
   return window.location.pathname + window.location.search + window.location.hash;
 }
 
+function reportPath(accountId: number | undefined, year: number) {
+  const path = readPage() === "monthlyExpenses" ? window.location.href : pagePaths.monthlyExpenses;
+  const url = new URL(path, window.location.origin);
+  url.pathname = pagePaths.monthlyExpenses;
+  url.searchParams.set("year", String(year));
+  if (accountId === undefined) {
+    url.searchParams.delete("accountId");
+  } else {
+    url.searchParams.set("accountId", String(accountId));
+  }
+  return url.pathname + url.search + url.hash;
+}
+
+function selectReportFilters(accountId: number, year: number) {
+  const path = reportPath(accountId, year);
+  if (path === currentPath()) return;
+  window.history.pushState(null, "", path);
+  syncPage();
+}
+
 function selectMovementAccount(accountId: number) {
   const path = movementPath(accountId);
   if (path === currentPath()) return;
@@ -107,7 +139,9 @@ function navigate(event: MouseEvent, page: Page) {
 }
 
 async function openPage(page: Page, accountId = movementAccountId.value) {
-  const path = page === "movements" ? movementPath(accountId) : pagePaths[page];
+  let path: string = pagePaths[page];
+  if (page === "movements") path = movementPath(accountId);
+  if (page === "monthlyExpenses") path = reportPath(reportAccountId.value ?? accounts.value?.[0]?.id, reportYear.value);
   if (path === currentPath()) return;
 
   window.history.pushState(null, "", path);
@@ -134,6 +168,19 @@ watch([accounts, activePage, movementAccountId], ([availableAccounts, page, acco
   const path = movementPath(account?.id);
   if (path !== currentPath()) window.history.replaceState(window.history.state, "", path);
   movementAccountId.value = account?.id;
+});
+
+watch([accounts, activePage, reportAccountId, reportYear], ([availableAccounts, page, accountId, year]) => {
+  if (page !== "monthlyExpenses" || availableAccounts === null) return;
+
+  const account = availableAccounts.find((item) => item.id === accountId) ?? availableAccounts[0];
+  const path = reportPath(account?.id, year);
+  if (path !== currentPath()) window.history.replaceState(window.history.state, "", path);
+  reportAccountId.value = account?.id;
+});
+
+watch(activePage, (page) => {
+  if (page === "monthlyExpenses") reportsOpen.value = true;
 });
 
 watch([currentUser, activePage], ([user, page]) => {
@@ -193,6 +240,7 @@ async function loadCurrentUser() {
     if (!response.ok) return false;
 
     syncPage();
+    if (activePage.value === "monthlyExpenses") reportsOpen.value = true;
     currentUser.value = await response.json();
     return true;
   } catch {
@@ -258,19 +306,28 @@ async function signOut() {
           <span class="home-nav-icon home-nav-icon--category" aria-hidden="true"></span>
           {{ es.home.categories }}
         </a>
-        <button
-          v-for="section in upcomingSections"
-          :key="section.icon"
-          type="button"
-          :title="es.home.comingSoon"
-          disabled
-        >
-          <span
-            class="home-nav-icon"
-            :class="'home-nav-icon--' + section.icon"
-            aria-hidden="true"
-          ></span>
-          {{ section.label }}
+        <div class="reports-nav">
+          <button
+            type="button"
+            :aria-expanded="reportsOpen"
+            aria-controls="reports-nav-links"
+            @click="reportsOpen = !reportsOpen"
+          >
+            <span class="home-nav-icon home-nav-icon--report" aria-hidden="true"></span>
+            {{ es.home.reports }}
+            <span class="reports-nav-chevron" aria-hidden="true"></span>
+          </button>
+          <div v-show="reportsOpen" id="reports-nav-links" class="reports-nav-links">
+            <a
+              :href="reportPath(reportAccountId ?? accounts?.[0]?.id, reportYear)"
+              :aria-current="activePage === 'monthlyExpenses' ? 'page' : undefined"
+              @click="navigate($event, 'monthlyExpenses')"
+            >{{ es.report.title }}</a>
+          </div>
+        </div>
+        <button type="button" :title="es.home.comingSoon" disabled>
+          <span class="home-nav-icon home-nav-icon--card" aria-hidden="true"></span>
+          {{ es.home.card }}
         </button>
       </nav>
       <div class="home-profile">
@@ -292,7 +349,12 @@ async function signOut() {
           {{ pageTitles[activePage] }}
         </h1>
       </header>
-      <main id="home-content" class="home-content" tabindex="-1">
+      <main
+        id="home-content"
+        class="home-content"
+        :class="{ 'home-content--report': activePage === 'monthlyExpenses' }"
+        tabindex="-1"
+      >
         <AccountOverview
           :key="currentUser.id"
           :show-overview="activePage === 'home'"
@@ -302,14 +364,14 @@ async function signOut() {
           @success="showSuccess"
           @session-expired="clearSession"
         >
-          <template v-if="activePage === 'movements'" #default="{ accounts, loading, loadError, retry }">
+          <template v-if="activePage === 'movements' || activePage === 'monthlyExpenses'" #default="{ accounts, loading, loadError, retry }">
             <p v-if="loading" role="status">{{ es.account.loading }}</p>
             <template v-else-if="loadError">
               <p class="auth-error" role="alert">{{ loadError }}</p>
               <button class="auth-submit" type="button" @click="retry">{{ es.account.retry }}</button>
             </template>
             <MovementHistory
-              v-else-if="accounts?.length"
+              v-else-if="accounts?.length && activePage === 'movements'"
               :account-id="movementAccountId"
               :accounts="accounts"
               @account-selected="selectMovementAccount"
@@ -317,8 +379,16 @@ async function signOut() {
               @edit-movement="(accountId, movement) => movementDialog?.open(accountId, movement)"
               @session-expired="clearSession"
             />
+            <MonthlyExpenseReport
+              v-else-if="accounts?.length && reportAccountId !== undefined"
+              :accounts="accounts"
+              :account-id="reportAccountId"
+              :year="reportYear"
+              @filters-selected="selectReportFilters"
+              @session-expired="clearSession"
+            />
             <template v-else>
-              <p>{{ es.movement.accountRequired }}</p>
+              <p>{{ activePage === 'movements' ? es.movement.accountRequired : es.report.accountRequired }}</p>
               <a class="home-back-link" :href="pagePaths.home" @click="navigate($event, 'home')">{{ es.home.title }}</a>
             </template>
           </template>

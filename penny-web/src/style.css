@@ -271,6 +271,23 @@ button:disabled {
   gap: 0.25rem;
 }
 
+.reports-nav-links {
+  padding-inline-start: var(--space-lg);
+}
+
+.reports-nav-chevron {
+  inline-size: 0.45rem;
+  block-size: 0.45rem;
+  margin-inline-start: auto;
+  border-inline-end: 1px solid currentColor;
+  border-block-end: 1px solid currentColor;
+  rotate: 45deg;
+}
+
+.reports-nav button[aria-expanded="true"] .reports-nav-chevron {
+  rotate: 225deg;
+}
+
 .home-sidebar :is(a, button) {
   display: flex;
   width: 100%;
@@ -409,6 +426,11 @@ button:disabled {
   max-inline-size: 82.5rem;
   margin-inline: auto;
   padding: var(--space-xl) var(--home-gutter);
+}
+
+.home-content--report {
+  max-inline-size: none;
+  padding-inline: clamp(0.75rem, 1.5vw, 1.5rem);
 }
 
 .account-panel {
@@ -933,6 +955,188 @@ button:disabled {
   font-weight: 800;
 }
 
+.expense-report-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 3%), 0 1px 2px -1px rgb(15 23 42 / 2%);
+}
+
+.expense-report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-md);
+  padding: var(--space-md) clamp(1rem, 3vw, 1.5rem);
+}
+
+.expense-report-filters .auth-field {
+  flex: 0 1 8rem;
+  min-inline-size: 0;
+}
+
+.expense-report-filters .auth-field:has(#report-account) {
+  flex-basis: 16rem;
+}
+
+.expense-report-filters label {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.expense-report-filters select {
+  min-block-size: 2.5rem;
+  border-color: var(--color-border);
+  font-size: 0.875rem;
+}
+
+.expense-report-currency {
+  margin-inline-start: auto;
+  padding: 0.375rem 0.625rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.expense-report-status {
+  margin: 0;
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+.expense-report-table {
+  container-type: inline-size;
+  overflow: auto;
+  max-inline-size: 100%;
+  max-block-size: 68vh;
+  border-block-start: 1px solid var(--color-border);
+  border-end-start-radius: inherit;
+  border-end-end-radius: inherit;
+}
+
+.expense-report-table table {
+  --report-row-background: var(--color-surface);
+  width: 100%;
+  border-spacing: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.expense-report-table :is(th, td) {
+  block-size: 2.5rem;
+  padding: 0.5rem clamp(0.375rem, 0.6vw, 0.75rem);
+  border-block-end: 1px solid var(--report-row-border, var(--color-border));
+  background: var(--report-row-background);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.expense-report-table td {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "cv05" 1, "cv11" 1;
+}
+
+.expense-report-table :is(thead, .expense-report-category, .expense-report-subcategory) {
+  --report-row-background: var(--color-primary);
+  --report-row-border: rgb(255 255 255 / 18%);
+  color: var(--color-surface);
+}
+
+.expense-report-table thead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+}
+
+.expense-report-table thead th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.expense-report-month-short {
+  display: none;
+  text-decoration: none;
+}
+
+@container (width < 68rem) {
+  .expense-report-month-name {
+    display: none;
+  }
+
+  .expense-report-month-short {
+    display: inline;
+  }
+}
+
+.expense-report-table thead :is(.expense-report-annual-start, .expense-report-annual) {
+  white-space: normal;
+}
+
+.expense-report-table tr > th:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  min-inline-size: clamp(7rem, 11vw, 12rem);
+  max-inline-size: clamp(8rem, 26vw, 14rem);
+  border-inline-end: 1px solid var(--report-row-border, var(--color-border));
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.expense-report-category {
+  font-weight: 600;
+}
+
+.expense-report-table .expense-report-subcategory {
+  --report-row-background: var(--color-text-secondary);
+}
+
+.expense-report-subcategory th {
+  padding-inline-start: 1.5rem;
+  font-weight: 400;
+}
+
+.expense-report-table tfoot :is(.expense-report-annual-start, .expense-report-annual) {
+  background: color-mix(in srgb, #e2e8f0 30%, var(--report-row-background));
+}
+
+.expense-report-annual-start {
+  border-inline-start: 1px solid var(--report-row-border, var(--color-border));
+  font-weight: 600;
+}
+
+.expense-report-table tfoot {
+  --report-row-background: #f1f5f9;
+  font-weight: 700;
+}
+
+.expense-report-table tfoot :is(th, td) {
+  border-block-start: 1px solid var(--color-border);
+  border-block-end: 0;
+}
+
+@media (hover: hover) {
+  .expense-report-table .expense-report-subcategory:hover {
+    --report-row-background: var(--color-primary-hover);
+  }
+}
+
+.expense-report-sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @media (max-width: 1050px) {
   .category-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -1006,6 +1210,31 @@ button:disabled {
 
   .home-navigation a:hover:not([aria-current]) {
     background: var(--color-border);
+  }
+
+  .reports-nav {
+    position: relative;
+  }
+
+  .reports-nav-links {
+    position: absolute;
+    inset-block-end: calc(100% + 0.25rem);
+    inset-inline-end: 0;
+    inline-size: min(14rem, 70vw);
+    padding: 0.375rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .reports-nav-links a {
+    font-size: 0.875rem;
+  }
+
+  .reports-nav-chevron {
+    display: none;
   }
 
   .home-header {

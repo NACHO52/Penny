@@ -16,6 +16,7 @@ export default defineConfig({
       "/account": apiProxy,
       "^/movement(?:[/?]|$)": apiProxy,
       "/category": apiProxy,
+      "/report/": apiProxy,
     },
   },
 });
