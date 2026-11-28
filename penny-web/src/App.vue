@@ -5,14 +5,10 @@ import CategoryManager from "./components/CategoryManager.vue";
 import MonthlyExpenseReport from "./components/MonthlyExpenseReport.vue";
 import MovementHistory from "./components/MovementHistory.vue";
 import NewMovementDialog from "./components/NewMovementDialog.vue";
+import ProfileForm, { type Profile, type ProfileUpdate } from "./components/ProfileForm.vue";
 import SuccessToast from "./components/SuccessToast.vue";
 import type { Account } from "./account";
 import { es } from "./locales/es";
-
-type CurrentUser = {
-  id: string;
-  email: string;
-};
 
 const text = es.login;
 const email = ref("");
@@ -20,7 +16,7 @@ const password = ref("");
 const showPassword = ref(false);
 const submitting = ref(false);
 const error = ref("");
-const currentUser = ref<CurrentUser | null>(null);
+const currentUser = ref<Profile | null>(null);
 const accounts = ref<Account[] | null>(null);
 const movementAccountId = ref(readMovementAccountId());
 const reportAccountId = ref<number>();
@@ -30,6 +26,8 @@ const movementRevision = ref(0);
 const successToast = ref<InstanceType<typeof SuccessToast>>();
 const checkingSession = ref(true);
 const signingOut = ref(false);
+const signOutDialog = ref<HTMLDialogElement>();
+const savingProfile = ref(false);
 const signOutError = ref("");
 const pagePaths = {
   home: "/",
@@ -57,6 +55,30 @@ function clearSession() {
   movementAccountId.value = undefined;
   reportAccountId.value = undefined;
   reportsOpen.value = false;
+  signOutError.value = "";
+}
+
+async function saveProfile(request: ProfileUpdate) {
+  if (signingOut.value || savingProfile.value) return;
+  const userId = currentUser.value?.id;
+  savingProfile.value = true;
+  try {
+    const response = await fetch("/auth/me", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    if (currentUser.value?.id === userId) {
+      if (response.status === 401) clearSession();
+      if (response.ok) {
+        currentUser.value = await response.json() as Profile;
+        showSuccess(es.profile.saved);
+      }
+    }
+    return response;
+  } finally {
+    savingProfile.value = false;
+  }
 }
 
 function readPage(): Page {
@@ -248,8 +270,17 @@ async function loadCurrentUser() {
   }
 }
 
+function confirmSignOut() {
+  const dialog = signOutDialog.value;
+  if (!dialog) return;
+
+  const confirmed = dialog.returnValue === "sign-out";
+  dialog.returnValue = "";
+  if (confirmed) void signOut();
+}
+
 async function signOut() {
-  if (signingOut.value) return;
+  if (signingOut.value || savingProfile.value) return;
 
   signingOut.value = true;
   signOutError.value = "";
@@ -325,10 +356,6 @@ async function signOut() {
             >{{ es.report.title }}</a>
           </div>
         </div>
-        <button type="button" :title="es.home.comingSoon" disabled>
-          <span class="home-nav-icon home-nav-icon--card" aria-hidden="true"></span>
-          {{ es.home.card }}
-        </button>
       </nav>
       <div class="home-profile">
         <a
@@ -337,7 +364,7 @@ async function signOut() {
           @click="navigate($event, 'profile')"
         >
           <span class="home-avatar" aria-hidden="true">{{
-            currentUser.email.slice(0, 1).toUpperCase()
+            currentUser.userName.slice(0, 1).toUpperCase()
           }}</span>
           <span>{{ es.home.profile }}</span>
         </a>
@@ -348,6 +375,17 @@ async function signOut() {
         <h1 ref="pageHeading" tabindex="-1">
           {{ pageTitles[activePage] }}
         </h1>
+        <button
+          class="home-sign-out"
+          type="button"
+          :disabled="signingOut || savingProfile"
+          @click="signOutDialog?.showModal()"
+        >
+          {{ signingOut ? es.home.signingOut : es.home.signOut }}
+        </button>
+        <p v-if="signOutError" class="auth-error home-sign-out-error" role="alert">
+          {{ signOutError }}
+        </p>
       </header>
       <main
         id="home-content"
@@ -398,21 +436,27 @@ async function signOut() {
           @success="showSuccess"
           @session-expired="clearSession"
         />
-        <p v-if="activePage === 'profile'" class="session-email">{{ currentUser.email }}</p>
-        <button
+        <ProfileForm
           v-if="activePage === 'profile'"
-          class="home-sign-out"
-          type="button"
-          :disabled="signingOut"
-          @click="signOut"
-        >
-          {{ signingOut ? es.home.signingOut : es.home.signOut }}
-        </button>
-        <p v-if="signOutError" class="auth-error" role="alert">
-          {{ signOutError }}
-        </p>
+          :key="currentUser.id"
+          :profile="currentUser"
+          :disabled="signingOut || savingProfile"
+          :save="saveProfile"
+        />
       </main>
     </div>
+    <dialog
+      ref="signOutDialog"
+      class="app-dialog"
+      aria-labelledby="sign-out-title"
+      @close="confirmSignOut"
+    >
+      <h1 id="sign-out-title">{{ es.home.signOutConfirmation }}</h1>
+      <form method="dialog" class="app-dialog-actions sign-out-dialog-actions">
+        <button type="submit" value="cancel" autofocus>{{ es.home.cancelSignOut }}</button>
+        <button class="auth-submit" type="submit" value="sign-out">{{ es.home.signOut }}</button>
+      </form>
+    </dialog>
     <SuccessToast ref="successToast" />
     <NewMovementDialog
       v-if="accounts?.length"

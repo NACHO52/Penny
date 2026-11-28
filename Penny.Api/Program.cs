@@ -11,7 +11,7 @@ var connectionString = builder.Configuration.GetConnectionString("PennyDatabase"
 builder.Services.AddPennyPersistence(connectionString);
 
 builder.Services
-    .AddIdentity<IdentityUser, IdentityRole>()
+    .AddIdentity<IdentityUser, IdentityRole>(options => options.User.RequireUniqueEmail = true)
     .AddEntityFrameworkStores<PennyDbContext>();
 
 builder.Services.ConfigureApplicationCookie(options =>

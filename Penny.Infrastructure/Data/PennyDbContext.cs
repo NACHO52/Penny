@@ -23,6 +23,11 @@ public class PennyDbContext : IdentityDbContext
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<IdentityUser>()
+            .HasIndex(user => user.NormalizedEmail)
+            .IsUnique()
+            .HasFilter("[NormalizedEmail] IS NOT NULL");
+
         builder.Entity<Account>(account =>
         {
             account.ToTable(nameof(Account));

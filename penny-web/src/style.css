@@ -188,6 +188,7 @@ button:disabled {
 }
 
 .home-sign-out {
+  margin-inline-start: auto;
   border-color: var(--color-border);
   color: var(--color-text-secondary);
   background: var(--color-surface);
@@ -340,8 +341,7 @@ button:disabled {
   border-radius: 50%;
 }
 
-.home-nav-icon--movement::after,
-.home-nav-icon--card::after {
+.home-nav-icon--movement::after {
   width: 100%;
   height: 2px;
 }
@@ -355,10 +355,6 @@ button:disabled {
   height: 0.5rem;
   border-radius: 0;
   background: linear-gradient(to top right, transparent 40%, currentColor 45% 60%, transparent 65%);
-}
-
-.home-nav-icon--card {
-  height: 0.8125rem;
 }
 
 .home-profile {
@@ -770,6 +766,10 @@ button:disabled {
   gap: var(--space-sm);
 }
 
+.sign-out-dialog-actions {
+  margin-block-start: var(--space-md);
+}
+
 .category-delete-confirm {
   color: var(--color-surface);
   background: var(--color-error);
@@ -862,10 +862,30 @@ button:disabled {
   margin-block-start: var(--space-sm);
 }
 
-.session-email {
+.profile-form {
+  max-inline-size: 30rem;
+  margin: 0;
+}
+
+.profile-form fieldset {
+  display: grid;
+  min-inline-size: 0;
+  gap: inherit;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-form legend {
+  margin-block-end: var(--space-md);
+  padding: 0;
+  font-weight: 700;
+}
+
+.profile-field-hint {
   margin: 0;
   color: var(--color-text-muted);
-  overflow-wrap: anywhere;
+  font-size: 0.875rem;
 }
 
 .movement-toolbar {
@@ -1147,8 +1167,9 @@ button:disabled {
   }
 }
 
-.home-content .home-sign-out {
-  margin-top: var(--space-md);
+.home-sign-out-error {
+  flex-basis: 100%;
+  text-align: end;
 }
 
 .home-content .auth-error {
